@@ -1,1 +1,1 @@
-export * from "@scriptc/compiler/cli/usage";
+export * from "@zshannon/scriptc-compiler/cli/usage";

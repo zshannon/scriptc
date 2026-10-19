@@ -91,10 +91,10 @@ async function tryFastPath(): Promise<number | null> {
     npmStatic = npmRaw;
   }
 
-  let startup: typeof import("@scriptc/compiler/startup-cache");
+  let startup: typeof import("@zshannon/scriptc-compiler/startup-cache");
   let buildPlatform: string;
   try {
-    startup = await import("@scriptc/compiler/startup-cache");
+    startup = await import("@zshannon/scriptc-compiler/startup-cache");
     buildPlatform = startup.configuredTargetPlatform();
   } catch {
     return null;
@@ -196,9 +196,9 @@ async function coverageFastPath(
     (values["external-types"] ?? []).length > 0
   )
     return null;
-  let startup: typeof import("@scriptc/compiler/startup-cache");
+  let startup: typeof import("@zshannon/scriptc-compiler/startup-cache");
   try {
-    startup = await import("@scriptc/compiler/startup-cache");
+    startup = await import("@zshannon/scriptc-compiler/startup-cache");
   } catch {
     return null;
   }

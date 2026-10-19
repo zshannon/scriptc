@@ -56,7 +56,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, globSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compileLibrary } from "@scriptc/compiler";
+import { compileLibrary } from "@zshannon/scriptc-compiler";
 
 import { nmDefined } from "./nm-defined.js";
 const enabled = process.env["SCRIPTC_CROSS"] === "1";

@@ -117,7 +117,7 @@ async function fixture(target: NativeTargetSpec = MACOS_ARM64_TARGET) {
       object_format: target.objectFormat,
       minimum_os: target.minimumOs,
     },
-    runtime_abi: { version: 22, marker: "scr_runtime_abi_v22" },
+    runtime_abi: { version: 1, marker: "scr_zshannon_runtime_abi_v1" },
     compiler: {
       command: "clang",
       identity: "fixture clang",
@@ -349,7 +349,7 @@ describe("runtime pack manifests", () => {
         resolver: () => packagePath,
       }),
     ).rejects.toThrow(
-      `found package @scriptc/runtime-darwin-arm64@${VERSION} with manifest @scriptc/runtime-darwin-arm64@0.0.0`,
+      `found package @zshannon/scriptc-runtime-darwin-arm64@${VERSION} with manifest @zshannon/scriptc-runtime-darwin-arm64@0.0.0`,
     );
   });
 
@@ -770,4 +770,29 @@ test("speed selects the pack's speed flavor and falls back to release objects wi
   expect(() => parseRuntimePackManifest({ ...f.manifest, flavors: withoutExecutable })).toThrow(
     "malformed",
   );
+});
+
+test("upstream ownership ABI cannot satisfy the fork runtime contract", async () => {
+  const { manifest } = await fixture();
+  expect(() =>
+    parseRuntimePackManifest({
+      ...manifest,
+      runtime_abi: { version: 22, marker: "scr_runtime_abi_v22" },
+    }),
+  ).toThrow(RuntimePackError);
+});
+
+test("an upstream package is rejected even when its version matches the fork", async () => {
+  const { root, packagePath, manifest } = await fixture();
+  const name = "@scriptc/runtime-darwin-arm64";
+  await writeFile(packagePath, JSON.stringify({ name, version: VERSION }));
+  await writeFile(join(root, "runtime-pack.json"), JSON.stringify({ ...manifest, package: name }));
+  await expect(
+    loadRuntimePack({
+      target: MACOS_ARM64_TARGET,
+      features: BASE,
+      optimization: "release",
+      resolver: () => packagePath,
+    }),
+  ).rejects.toBeInstanceOf(RuntimePackError);
 });

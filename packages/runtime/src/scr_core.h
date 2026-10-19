@@ -81,7 +81,7 @@ void scr_init(void);
 /* Program objects emitted by the bundled LLVM helper reference this symbol.
  * Its versioned spelling makes a mismatched manual runtime link fail before
  * the program can start. */
-void scr_runtime_abi_v22(void);
+void scr_zshannon_runtime_abi_v1(void);
 void scr_runtime_workers_v8(void);
 
 /* ── the trap funnel (scr_console.c; scr_library.c under -DSCR_LIB) ──────
@@ -239,6 +239,10 @@ void scr_library_arena_reset(void);
  * unreachable cycles). */
 void scr_library_collect(void);
 
+/* Same session cleanup without the reinitialization audit: the host may
+ * still own native references until its own teardown finishes. */
+void scr_library_dispose(void);
+
 /* Full session reset, called by the generated init entry AFTER the program
  * TU released and zeroed its globals: pending-exception clear, arena
  * reset, the reset registry's drains (the units' repointed atexit halves),
@@ -247,7 +251,7 @@ void scr_library_collect(void);
  * the sink, never _Exit). */
 void scr_library_reset(void);
 /* Where a unit would atexit() a lazy teardown, library builds register it
- * here instead (called on every scr_library_reset, registered once). */
+ * here instead (called on every session cleanup, registered once). */
 void scr_library_register_reset(void (*fn)(void));
 /* An escaped exception at an entry boundary: renders the same "Uncaught
  * ..." text the executable epilogue prints, releases the payload, and

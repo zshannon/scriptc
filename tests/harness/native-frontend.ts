@@ -10,8 +10,13 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, expect } from "vitest";
-import { compileC, deserializeModule, emitLlvmModule, validateModule } from "@scriptc/compiler";
-import type { compile } from "@scriptc/compiler";
+import {
+  compileC,
+  deserializeModule,
+  emitLlvmModule,
+  validateModule,
+} from "@zshannon/scriptc-compiler";
+import type { compile } from "@zshannon/scriptc-compiler";
 import type { IrModule } from "../../packages/compiler/src/ir/ir.js";
 import { ts7Executable } from "../../packages/compiler/src/frontend/ts7/rpc-api.js";
 

@@ -20,7 +20,7 @@ import {
   NODE24_FETCH_COMPAT_PROFILE,
   renderDiagnostics,
   type FetchCompatEvidence,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import {
   FETCH_CONFORMANCE_SCENARIOS,
   FETCH_CONFORMANCE_SEED,

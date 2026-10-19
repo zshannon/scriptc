@@ -1,1 +1,1 @@
-export * from "@scriptc/compiler/cli/output-options";
+export * from "@zshannon/scriptc-compiler/cli/output-options";

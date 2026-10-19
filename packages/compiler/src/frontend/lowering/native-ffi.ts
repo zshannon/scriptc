@@ -52,6 +52,7 @@ function ffiScalarDomain(
   nativeClass: IrFfiCallbackParamClass | IrFfiReturnClass,
 ): { name: string; flag: ts.TypeFlags } | null {
   switch (nativeClass) {
+    case "dyn":
     case "bytes":
     case "void":
       return null;

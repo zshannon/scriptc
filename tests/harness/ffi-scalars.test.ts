@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 
 const root = join(import.meta.dirname, "../..");
 const fixture = join(root, "tests/ffi");

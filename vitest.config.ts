@@ -34,23 +34,23 @@ if (effectConcurrency !== undefined && effectConcurrency !== "1" && effectConcur
 export default defineConfig({
   resolve: {
     alias: {
-      "@scriptc/compiler/cli/command": fileURLToPath(
+      "@zshannon/scriptc-compiler/cli/command": fileURLToPath(
         new URL("./packages/compiler/src/cli/command.ts", import.meta.url),
       ),
-      "@scriptc/compiler/cli/host": fileURLToPath(
+      "@zshannon/scriptc-compiler/cli/host": fileURLToPath(
         new URL("./packages/compiler/src/cli/host.ts", import.meta.url),
       ),
-      "@scriptc/compiler/cli/paths": fileURLToPath(
+      "@zshannon/scriptc-compiler/cli/paths": fileURLToPath(
         new URL("./packages/compiler/src/cli/paths.ts", import.meta.url),
       ),
-      "@scriptc/compiler/cli/output-options": fileURLToPath(
+      "@zshannon/scriptc-compiler/cli/output-options": fileURLToPath(
         new URL("./packages/compiler/src/cli/output-options.ts", import.meta.url),
       ),
-      "@scriptc/compiler/cli/usage": fileURLToPath(
+      "@zshannon/scriptc-compiler/cli/usage": fileURLToPath(
         new URL("./packages/compiler/src/cli/usage.ts", import.meta.url),
       ),
       // Tests run against compiler source directly — no build step needed.
-      "@scriptc/compiler": fileURLToPath(
+      "@zshannon/scriptc-compiler": fileURLToPath(
         new URL("./packages/compiler/src/index.ts", import.meta.url),
       ),
     },

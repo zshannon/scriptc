@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { analyze, compile } from "@scriptc/compiler";
+import { analyze, compile } from "@zshannon/scriptc-compiler";
 import {
   cjsResolvePaths,
   resolveCjsRuntime,

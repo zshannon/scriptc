@@ -8,7 +8,7 @@ import {
   compile,
   resolveProvenanceSources,
   setProvenanceSources,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = join(import.meta.dirname, "../..");

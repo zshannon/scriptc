@@ -2,7 +2,7 @@
 
 This out-of-process helper owns LLVM assembly and object emission for
 scriptc. It is built against exactly LLVM 22.1.8 and currently contains only
-the AArch64 backend. The shipping `@scriptc/llvm-darwin-arm64` package builds
+the AArch64 backend. The shipping `@zshannon/scriptc-llvm-darwin-arm64` package builds
 and carries the executable; the compiler resolves that package directly and
 never searches `PATH` for this program.
 
@@ -12,7 +12,7 @@ explicitly when working on native emission or preparing a package:
 
 ```console
 $ brew install cmake ninja llvm@22
-$ pnpm --filter @scriptc/llvm-darwin-arm64 build:native
+$ pnpm --filter @zshannon/scriptc-llvm-darwin-arm64 build:native
 ```
 
 The protocol is intentionally small and versioned:

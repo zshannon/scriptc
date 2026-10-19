@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { analyze, compile } from "@scriptc/compiler";
+import { analyze, compile } from "@zshannon/scriptc-compiler";
 import { expect, test } from "vitest";
 
 const root = join(import.meta.dirname, "../..");

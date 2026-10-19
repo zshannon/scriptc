@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
 import ts5 from "typescript";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 import { corpusSelect, shardSuffix } from "./shard.js";
 
 const execFileAsync = promisify(execFile);

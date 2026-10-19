@@ -1,12 +1,12 @@
 {
-  "name": "@scriptc/compiler",
+  "name": "@zshannon/scriptc-compiler",
   "version": "0.3.6",
-  "description": "The scriptc compiler — TypeScript/JavaScript frontend, typed IR, LLVM backend",
+  "description": "The scriptc compiler \u2014 TypeScript/JavaScript frontend, typed IR, LLVM backend",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vercel-labs/scriptc.git",
+    "url": "git+https://github.com/zshannon/scriptc.git",
     "directory": "packages/compiler"
   },
   "type": "module",
@@ -38,28 +38,14 @@
     "build": "node node_modules/typescript/bin/tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@scriptc/runtime": "workspace:*",
+    "@zshannon/scriptc-runtime": "workspace:*",
     "typescript": "7.0.2",
     "typescript5": "npm:typescript@5.9.3"
   },
   "optionalDependencies": {
-    "@scriptc/llvm-darwin-arm64": "workspace:*",
-    "@scriptc/llvm-darwin-x64": "workspace:*",
-    "@scriptc/llvm-linux-x64-gnu": "workspace:*",
-    "@scriptc/llvm-linux-arm64-gnu": "workspace:*",
-    "@scriptc/llvm-linux-x64-musl": "workspace:*",
-    "@scriptc/llvm-linux-arm64-musl": "workspace:*",
-    "@scriptc/llvm-win32-x64-msvc": "workspace:*",
-    "@scriptc/runtime-darwin-arm64": "workspace:*",
-    "@scriptc/runtime-darwin-x64": "workspace:*",
-    "@scriptc/runtime-linux-x64-gnu": "workspace:*",
-    "@scriptc/runtime-linux-arm64-gnu": "workspace:*",
-    "@scriptc/runtime-linux-x64-musl": "workspace:*",
-    "@scriptc/runtime-linux-arm64-musl": "workspace:*",
-    "@scriptc/runtime-win32-x64-msvc": "workspace:*",
-    "@scriptc/runtime-wasm32-wasi": "workspace:*",
-    "@scriptc/runtime-ios-arm64": "workspace:*",
-    "@scriptc/runtime-ios-simulator-arm64": "workspace:*",
-    "@scriptc/runtime-android-arm64": "workspace:*"
+    "@zshannon/scriptc-llvm-darwin-arm64": "workspace:*",
+    "@zshannon/scriptc-runtime-darwin-arm64": "workspace:*",
+    "@zshannon/scriptc-runtime-ios-arm64": "workspace:*",
+    "@zshannon/scriptc-runtime-ios-simulator-arm64": "workspace:*"
   }
 }

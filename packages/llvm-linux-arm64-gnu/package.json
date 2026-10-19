@@ -1,12 +1,12 @@
 {
-  "name": "@scriptc/llvm-linux-arm64-gnu",
+  "name": "@zshannon/scriptc-llvm-linux-arm64-gnu",
   "version": "0.3.6",
   "description": "Pinned LLVM code-generation helper for scriptc on Linux arm64",
   "license": "Apache-2.0 WITH LLVM-exception",
   "homepage": "https://scriptc.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vercel-labs/scriptc.git",
+    "url": "git+https://github.com/zshannon/scriptc.git",
     "directory": "packages/llvm-linux-arm64-gnu"
   },
   "os": [

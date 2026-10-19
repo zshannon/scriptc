@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { analyze, compile } from "@scriptc/compiler";
+import { analyze, compile } from "@zshannon/scriptc-compiler";
 import { expect, test } from "vitest";
 import { ts7Executable } from "../../packages/compiler/src/frontend/ts7/rpc-api.js";
 

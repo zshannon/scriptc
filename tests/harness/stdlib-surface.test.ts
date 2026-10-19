@@ -10,7 +10,7 @@ import {
   overridesDtsPath,
   STATIC_MATH_PROPS,
   type StdlibFnEntry,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import { loadProgram } from "../../packages/compiler/src/frontend/program-node.js";
 
 function placeholder(t: ir.IrType): string {

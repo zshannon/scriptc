@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import { buildTargetPlatform } from "@scriptc/compiler";
+import { buildTargetPlatform } from "@zshannon/scriptc-compiler";
 import { expect, test } from "vitest";
 import {
   defaultExecutableName,

@@ -22,7 +22,12 @@ import {
   type SrcLoc,
 } from "../../ir/ir.js";
 import { streamTypedRefEligible } from "../../ir/analysis.js";
-import { everyStmtList, transformExpr, transformStmtList } from "../../ir/traverse.js";
+import {
+  everyStmtList,
+  mapStmtChildren,
+  transformExpr,
+  transformStmtList,
+} from "../../ir/traverse.js";
 import { PoisonError, type Lowerer } from "./lowerer.js";
 import { implicitDefaultInstance } from "./generic-functions.js";
 import { type ParamShape } from "./call-signatures.js";
@@ -312,6 +317,30 @@ export function classPropertiesHelper(lowerer: Lowerer, loc: SrcLoc, readOnly = 
   };
   lowerer.liftedFns.push(helper);
   return helper;
+}
+
+function readSelectedBag(
+  bag: IrExpr,
+  receiver: IrExpr,
+  key: IrExpr,
+  optional: boolean,
+  loc: SrcLoc,
+): IrExpr {
+  return {
+    kind: "ternary",
+    cond: { kind: "dynScalarEq", left: bag, right: receiver, type: BOOL, loc },
+    then: {
+      kind: "dynKeyGet",
+      value: bag,
+      key,
+      ...(optional ? { optional: true as const } : {}),
+      type: DYN,
+      loc,
+    },
+    else_: { kind: "libCall", fn: "dyn.bagGet", args: [bag, key, receiver], type: DYN, loc },
+    type: DYN,
+    loc,
+  };
 }
 
 /** A for-in presence recheck asks the live property table first, avoiding
@@ -607,6 +636,10 @@ export class ClassDynamicDispatch {
       numericKey: boolean;
       probe: "in" | "own" | "enumerable" | undefined;
     }
+  >();
+  private readonly readSelectors = new Map<
+    string,
+    { helper: IrFunction; optional: boolean; statics: boolean }
   >();
   private readonly computedClassHelpers = new Map<string, IrFunction>();
   private normalization: IrFunction | null = null;
@@ -1908,50 +1941,29 @@ export class ClassDynamicDispatch {
                 name: `p${i}`,
                 type: DYN,
               }));
-              const instanceBag: IrExpr = read
-                ? this.readPropertyBagOrEmpty(lowerer, varRef("p.0", DYN, loc), loc)
-                : {
-                    kind: "call",
-                    callee: this.propertyBag!.name,
-                    args: [varRef("p.0", DYN, loc)],
-                    type: DYN,
-                    loc,
-                  };
-              const bag: IrExpr =
-                read && !["name", "length", "apply"].includes(name)
-                  ? {
-                      kind: "call",
-                      callee: this.constructorPropertyBag(lowerer, loc).name,
-                      args: [instanceBag],
-                      type: DYN,
-                      loc,
-                    }
-                  : instanceBag;
-              // A read compares the bag with the receiver and then reads it:
-              // evaluate it once, so each read retains the receiver once.
-              const bagRead = varRef("bag.0", DYN, loc);
               const fallback: IrExpr = read
-                ? {
-                    kind: "ternary",
-                    cond: {
-                      kind: "dynScalarEq",
-                      left: bagRead,
-                      right: varRef("p.0", DYN, loc),
-                      type: BOOL,
-                      loc,
-                    },
-                    then: { ...read, value: bagRead },
-                    else_: {
-                      kind: "libCall",
-                      fn: "dyn.bagGet",
-                      args: [bagRead, read.key, varRef("p.0", DYN, loc)],
-                      type: DYN,
-                      loc,
-                    },
-                    type: DYN,
+                ? this.readProperty(
+                    lowerer,
+                    varRef("p.0", DYN, loc),
+                    read.key,
+                    read.optional ?? false,
+                    !["name", "length", "apply"].includes(name),
                     loc,
-                  }
-                : { ...write!, args: [bag, write!.args[1]!, varRef("p.1", DYN, loc)] };
+                  )
+                : {
+                    ...write!,
+                    args: [
+                      {
+                        kind: "call",
+                        callee: this.propertyBag!.name,
+                        args: [varRef("p.0", DYN, loc)],
+                        type: DYN,
+                        loc,
+                      },
+                      write!.args[1]!,
+                      varRef("p.1", DYN, loc),
+                    ],
+                  };
               const helper: IrFunction = {
                 name: `%dyn.class.property.${this.properties.size}`,
                 params,
@@ -1963,17 +1975,13 @@ export class ClassDynamicDispatch {
                     type: DYN,
                     mutable: false,
                   })),
-                  ...(read ? [{ id: "bag.0", name: "bag", type: DYN, mutable: false }] : []),
                 ],
                 body: write
                   ? [
                       { kind: "exprStmt", expr: fallback, loc },
                       { kind: "return", value: null, loc },
                     ]
-                  : [
-                      { kind: "varDecl", localId: "bag.0", init: bag, loc },
-                      { kind: "return", value: fallback, loc },
-                    ],
+                  : [{ kind: "return", value: fallback, loc }],
                 loc,
               };
               if (!write && name === "toString" && lowerer.classes.has("%Error")) {
@@ -3128,6 +3136,67 @@ export class ClassDynamicDispatch {
     };
   }
 
+  /** Ordinary reads borrow their receiver. Native class bags can be fresh
+   * values, so only those branches retain an owned bag across getter reentry.
+   * Finalization fuses the settled bag dispatch into this shared selector. */
+  private readProperty(
+    lowerer: Lowerer,
+    receiver: IrExpr,
+    key: IrExpr,
+    optional: boolean,
+    statics: boolean,
+    loc: SrcLoc,
+  ): IrExpr {
+    const id = JSON.stringify([optional, statics]);
+    let selector = this.readSelectors.get(id);
+    if (!selector) {
+      const params = [
+        { localId: "p.0", name: "receiver", type: DYN },
+        { localId: "p.key", name: "key", type: STRING },
+      ];
+      const instanceBag = this.readPropertyBagOrEmpty(lowerer, varRef("p.0", DYN, loc), loc);
+      const bag: IrExpr = statics
+        ? {
+            kind: "call",
+            callee: this.constructorPropertyBag(lowerer, loc).name,
+            args: [instanceBag],
+            type: DYN,
+            loc,
+          }
+        : instanceBag;
+      const helper: IrFunction = {
+        name: `%dyn.class.readKey.${this.readSelectors.size}`,
+        params,
+        returnType: DYN,
+        locals: [
+          ...params.map((p) => ({ id: p.localId, name: p.name, type: p.type, mutable: false })),
+          { id: "bag.0", name: "bag", type: DYN, mutable: false },
+        ],
+        // Keep the complete original dependencies visible to the worklist.
+        body: [
+          { kind: "varDecl", localId: "bag.0", init: bag, loc },
+          {
+            kind: "return",
+            value: readSelectedBag(
+              varRef("bag.0", DYN, loc),
+              varRef("p.0", DYN, loc),
+              varRef("p.key", STRING, loc),
+              optional,
+              loc,
+            ),
+            loc,
+          },
+        ],
+        loc,
+      };
+      selector = { helper, optional, statics };
+      this.readSelectors.set(id, selector);
+      this.generated.add(helper);
+      lowerer.liftedFns.push(helper);
+    }
+    return { kind: "call", callee: selector.helper.name, args: [receiver, key], type: DYN, loc };
+  }
+
   /** A known native class can access its shared bag directly. Keep the
    * receiver as an owned parameter so calls and temporary instances retain
    * their ordinary evaluation and lifetime rules without a boxed capsule. */
@@ -3215,6 +3284,76 @@ export class ClassDynamicDispatch {
       fn.body = readOnlyBagBody(
         structuredClone(this.propertyBag.body),
         fn.name === READ_PROPERTIES_OR_EMPTY,
+      );
+    }
+    for (const { helper, optional, statics } of this.readSelectors.values()) {
+      if (!this.propertyBag) continue;
+      const loc = helper.loc;
+      const receiver = varRef("p.0", DYN, loc);
+      const key = varRef("p.key", STRING, loc);
+      helper.locals = [
+        ...structuredClone(this.propertyBag.locals),
+        { id: "p.key", name: "key", type: STRING, mutable: false },
+      ];
+      const direct = (): IrStmt => ({
+        kind: "return",
+        value: {
+          kind: "dynKeyGet",
+          value: receiver,
+          key,
+          ...(optional ? { optional: true as const } : {}),
+          type: DYN,
+          loc,
+        },
+        loc,
+      });
+      const selected = (value: IrExpr): IrStmt => {
+        const id = `selected.${helper.locals.length}`;
+        helper.locals.push({ id, name: "bag", type: DYN, mutable: false });
+        return {
+          kind: "block",
+          body: [
+            { kind: "varDecl", localId: id, init: value, loc },
+            {
+              kind: "return",
+              value: readSelectedBag(varRef(id, DYN, loc), receiver, key, optional, loc),
+              loc,
+            },
+          ],
+          loc,
+        };
+      };
+      const identity = (value: IrExpr) => value.kind === "varRef" && value.localId === "p.0";
+      // Traverse only existing statements, not the returns introduced by a
+      // replacement block (transformStmtList deliberately uses preorder).
+      const readReturns = (body: IrStmt[], read: (value: IrExpr) => IrStmt): IrStmt[] => {
+        const rewrite = (stmt: IrStmt): IrStmt =>
+          stmt.kind === "return" && stmt.value
+            ? read(stmt.value)
+            : mapStmtChildren(stmt, (expr) => expr, rewrite);
+        return body.map(rewrite);
+      };
+      const ordinary = (): IrStmt => {
+        if (!statics || !this.staticPropertyBag) return direct();
+        const renamed = transformStmtList(structuredClone(this.staticPropertyBag.body), {
+          expr: (expr) => (expr.kind === "varRef" && expr.localId === "value" ? receiver : expr),
+          stmt: (stmt) => stmt,
+        });
+        const body = readReturns(renamed, (value) =>
+          identity(value) ? direct() : selected(value),
+        );
+        return body.length === 1 ? body[0]! : { kind: "block", body, loc };
+      };
+      helper.body = readReturns(
+        readOnlyBagBody(structuredClone(this.propertyBag.body), true),
+        (value) => {
+          if (identity(value)) return ordinary();
+          const bag: IrExpr =
+            statics && this.staticPropertyBag
+              ? { kind: "call", callee: this.staticPropertyBag.name, args: [value], type: DYN, loc }
+              : value;
+          return selected(bag);
+        },
       );
     }
   }

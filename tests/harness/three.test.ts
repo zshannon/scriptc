@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 import { balancedShardSelect } from "./shard.js";
 
 const hasZig = spawnSync("zig", ["version"], { stdio: "ignore" }).status === 0;

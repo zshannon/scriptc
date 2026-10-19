@@ -1744,6 +1744,8 @@ ScrDyn *scr_dyn_obj_create(ScrDyn *prototype) {
 }
 
 ScrDyn *scr_dyn_get_prototype(ScrDyn *object) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(object);
+  if (foreign && foreign->prototype) return foreign->prototype(object->v.handle.ptr);
   if (object == scr_builtin_object_prototype) return scr_dyn_new_null();
   if (scr_dyn_class_reflection_fence(object)) return NULL;
   if (object->kind == SCR_DYN_TYPED_REF && strncmp(object->v.typed_ref.type_key, "object:", 7)) {
@@ -3831,7 +3833,9 @@ ScrDyn *scr_dyn_new_handle(void *h, ScrDynHandleTag tag) {
   ScrDyn *d = scr_dyn_alloc(SCR_DYN_HANDLE);
   d->v.handle.ptr = scr_dyn_handle_ops(tag)->retain(h);
   d->v.handle.tag = tag;
-  d->v.handle.traced = tag == SCR_DYNH_WEAK_MAP || tag == SCR_DYNH_WEAK_SET ||
+  d->v.handle.traced =
+      (tag == SCR_DYNH_FOREIGN && ((const ScrDynForeignOps *)scr_dyn_handle_ops(tag))->traced) ||
+      tag == SCR_DYNH_WEAK_MAP || tag == SCR_DYNH_WEAK_SET ||
       tag == SCR_DYNH_WORKER || tag == SCR_DYNH_MESSAGE_PORT ||
       ((tag == SCR_DYNH_SET || tag == SCR_DYNH_MAP) &&
        ((ScrMap *)h)->traced != 0);
@@ -3848,6 +3852,11 @@ SCR_TL bool (*scr_dyn_promise_identity_fn)(ScrPromise *a, ScrPromise *b) = NULL;
 ScrDyn *scr_dyn_alloc_promise(void (*release_fn)(ScrPromise *p)) {
   scr_dyn_promise_release_fn = release_fn;
   return scr_dyn_alloc(SCR_DYN_PROMISE);
+}
+
+const ScrDynForeignOps *scr_dyn_foreign_ops_of(const ScrDyn *value) {
+  if (!value || value->kind != SCR_DYN_HANDLE || value->v.handle.tag != SCR_DYNH_FOREIGN) return NULL;
+  return (const ScrDynForeignOps *)scr_dyn_handle_ops_of(value);
 }
 
 bool scr_dyn_ref_typeof_is(const ScrDyn *d, const char *name) {
@@ -3879,6 +3888,8 @@ bool scr_dyn_ref_typeof_is(const ScrDyn *d, const char *name) {
 }
 
 bool scr_dyn_ref_is_array(const ScrDyn *d) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(d);
+  if (foreign && foreign->is_array) return foreign->is_array(d->v.handle.ptr);
   if (scr_dyn_generator(d)) return false;
   if (d->kind == SCR_DYN_TYPED_REF) {
     if (d->v.typed_ref.type_key_len >= 7 &&
@@ -3933,7 +3944,7 @@ void *scr_dyn_handle_unbox(const ScrDyn *d, ScrDynHandleTag tag, const ScrDynPat
 
 ScrDyn *scr_dyn_handle_key_get(const ScrDyn *d, const ScrStr *k) {
   const ScrDynHandleOps *ops = scr_dyn_handle_ops(d->v.handle.tag);
-  ScrDyn *r = ops->get(d->v.handle.ptr, k->data, k->len);
+  ScrDyn *r = ops->get ? ops->get(d->v.handle.ptr, k->data, k->len) : NULL;
   if (scr_exc_pending()) {
     scr_dyn_release(r);
     return NULL;
@@ -6430,7 +6441,7 @@ ScrDyn *scr_dyn_add(const ScrDyn *left, const ScrDyn *right) {
 ScrDyn *scr_dyn_to_numeric(const ScrDyn *value) {
   ScrDyn *primitive = scr_dyn_add_primitive(value);
   if (!primitive) return NULL;
-  if (primitive->kind == SCR_DYN_BIGINT) return primitive;
+  if (primitive->kind == SCR_DYN_BIGINT || primitive->kind == SCR_DYN_NUM) return primitive;
   double number;
   bool converted = scr_dyn_number_coerce_js(primitive, &number);
   scr_dyn_release(primitive);
@@ -6568,6 +6579,8 @@ static const char *scr_dyn_kind_name(const ScrDyn *d);
  * valid dense index, every other kind false (tsc admits `in` only on
  * object-typed operands). Proxy traps may throw. Borrows both. */
 bool scr_dyn_has_key(const ScrDyn *v, const ScrStr *key) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(v);
+  if (foreign && foreign->has) return foreign->has(v->v.handle.ptr, key, 0);
   if (scr_dyn_generator(v)) {
     static const char *const inherited[] = { "next", "return", "throw", "constructor", "toString", "valueOf", "hasOwnProperty", "propertyIsEnumerable", "isPrototypeOf", "toLocaleString", "__proto__" };
     for (size_t i = 0; i < sizeof inherited / sizeof inherited[0]; i++)
@@ -8481,6 +8494,15 @@ static void scr_json_delete_member(ScrDyn *object, const ScrStr *key) {
  * arrays, typed references and handles keep their explicit boundary;
  * deleting from a materialized snapshot would lose the mutation. */
 void scr_dyn_key_delete(ScrDyn *recv, const ScrStr *key, bool strict) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(recv);
+  if (foreign && foreign->delete_property) {
+    bool deleted = foreign->delete_property(recv->v.handle.ptr, key);
+    if (!deleted && strict && !scr_exc_pending()) {
+      static const char message[] = "Cannot delete non-configurable property";
+      scr_throw_error_msg(SCR_ERR_TYPE, message, sizeof message - 1);
+    }
+    return;
+  }
   if (scr_dyn_class_reflection_fence(recv)) return;
   if (recv->kind == SCR_DYN_PROXY) { scr_dyn_proxy_delete(recv, key); return; }
   if (recv->kind == SCR_DYN_TYPED_REF && recv->v.typed_ref.commit &&
@@ -9459,6 +9481,8 @@ ScrDyn *scr_dyn_function_apply(void) {
 }
 
 ScrDyn *scr_dyn_obj_read(const ScrDyn *d, const char *key, size_t key_len) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(d);
+  if (foreign && foreign->base.get) return foreign->base.get(d->v.handle.ptr, key, key_len);
   if (d->kind == SCR_DYN_PROXY) {
     ScrStr *name = scr_str_new(key, key_len);
     ScrDyn *value = scr_dyn_visit_proxy_get(d, name);
@@ -9760,6 +9784,8 @@ ScrDyn *scr_dyn_obj_own_keys(const ScrDyn *v) {
 }
 
 ScrDyn *scr_dyn_get_own_property_names(const ScrDyn *value) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(value);
+  if (foreign && foreign->keys) return foreign->keys(value->v.handle.ptr, 1);
   if (value->kind == SCR_DYN_TYPED_REF) {
     ScrDyn *view = scr_dyn_typed_ref_materialize(value);
     if (scr_exc_pending()) { scr_dyn_release(view); return NULL; }
@@ -9937,6 +9963,21 @@ static ScrDyn *scr_dyn_obj_data_walk(const ScrDyn *v, ScrObjWalk mode) {
 }
 
 static ScrDyn *scr_dyn_objwalk(const ScrDyn *v, ScrObjWalk mode) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(v);
+  if (foreign && foreign->keys) {
+    ScrDyn *keys = foreign->keys(v->v.handle.ptr, 0);
+    if (!keys || mode == SCR_OBJWALK_KEYS) return keys;
+    ScrDyn *out = scr_dyn_new_arr();
+    for (size_t i = 0; i < keys->v.arr.len; i++) {
+      ScrStr *key = keys->v.arr.items[i]->v.str;
+      ScrDyn *value = scr_dyn_obj_read(v, key->data, key->len);
+      if (!value) { scr_dyn_release(keys); scr_dyn_release(out); return NULL; }
+      scr_dyn_objwalk_push(out, mode, key->data, key->len, value);
+      scr_dyn_release(value);
+    }
+    scr_dyn_release(keys);
+    return out;
+  }
   if (scr_dyn_class_reflection_fence(v)) return NULL;
   if (v->kind == SCR_DYN_PROXY) {
     ScrDyn *trap = scr_dyn_proxy_trap(v, "ownKeys");
@@ -10146,6 +10187,8 @@ static ScrDyn *scr_typed_ref_record_walk(const ScrDyn *d, const ScrDynTypedRecor
 /* Snapshot enumerable names from the receiver and each live prototype.
  * Non-enumerable own names shadow names farther up the chain. */
 ScrDyn *scr_dyn_for_in_keys(const ScrDyn *v) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(v);
+  if (foreign && foreign->keys) return foreign->keys(v->v.handle.ptr, 2);
   if (scr_dyn_class_reflection_fence(v)) return NULL;
   if (v->kind == SCR_DYN_TYPED_REF) {
     /* The snapshot has no prototype: for-in visits its own keys. */
@@ -10777,6 +10820,8 @@ static bool scr_dyn_canonical_own_index(const ScrStr *key, size_t length) {
 }
 
 bool scr_dyn_has_own(const ScrDyn *v, const ScrStr *key) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(v);
+  if (foreign && foreign->has) return foreign->has(v->v.handle.ptr, key, 1);
   if (v->kind == SCR_DYN_TYPED_REF) {
     /* Own canonical indexes never consult the prototype: a hole is absent. */
     size_t index;
@@ -10840,6 +10885,8 @@ bool scr_dyn_has_own(const ScrDyn *v, const ScrStr *key) {
 }
 
 bool scr_dyn_property_is_enumerable(const ScrDyn *value, const ScrStr *key) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(value);
+  if (foreign && foreign->has) return foreign->has(value->v.handle.ptr, key, 2);
   if (scr_dyn_class_reflection_fence(value)) return false;
   if (value->kind == SCR_DYN_TYPED_REF) {
     ScrDyn *view = scr_dyn_typed_ref_materialize(value);

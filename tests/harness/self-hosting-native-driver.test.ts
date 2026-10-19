@@ -361,11 +361,11 @@ test(
           const output = join(directory, "three.wasm");
           // Install the cross-target pack after relocating the native compiler.
           // Its resolver must discover project dependencies without Node on PATH.
-          const scope = join(directory, "node_modules/@scriptc");
+          const scope = join(directory, "node_modules/@zshannon");
           mkdirSync(scope, { recursive: true });
           symlinkSync(
             join(root, "packages/runtime-wasm32-wasi"),
-            join(scope, "runtime-wasm32-wasi"),
+            join(scope, "scriptc-runtime-wasm32-wasi"),
             "dir",
           );
           const built = await exec(
@@ -540,11 +540,11 @@ test(
             withoutFirstLine(
               withoutFirstLine(
                 readFileSync(path),
-                "declare void @scr_runtime_abi_v",
-                /^declare void @scr_runtime_abi_v\d+\(\)\n$/,
+                "declare void @scr_zshannon_runtime_abi_v",
+                /^declare void @scr_zshannon_runtime_abi_v\d+\(\)\n$/,
               ),
-              "  call void @scr_runtime_abi_v",
-              /^  call void @scr_runtime_abi_v\d+\(\)\n$/,
+              "  call void @scr_zshannon_runtime_abi_v",
+              /^  call void @scr_zshannon_runtime_abi_v\d+\(\)\n$/,
             );
           expect(
             withoutAbiCheck(seedLlvm).equals(withoutAbiCheck(rebuiltLlvm)),

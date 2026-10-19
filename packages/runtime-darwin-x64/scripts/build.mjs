@@ -4,7 +4,7 @@ if (
   process.env.SCRIPTC_BUILD_CROSS !== "1" &&
   (process.platform !== "darwin" || process.arch !== "x64")
 ) {
-  process.stdout.write("@scriptc/runtime-darwin-x64: skipped on this host\n");
+  process.stdout.write("@zshannon/scriptc-runtime-darwin-x64: skipped on this host\n");
   process.exit(0);
 }
 process.env.SCRIPTC_RUNTIME_PACK_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));

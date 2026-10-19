@@ -9,7 +9,7 @@ import {
   resolveProvenanceSources,
   sourceTargetPlatform,
   warmNativeCaches,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import { runCli } from "./command.js";
 
 /** The version of the installed package. Read from the manifest rather than

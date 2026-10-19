@@ -61,7 +61,9 @@ try {
   const manifest = JSON.parse(readFileSync(join(repository, "packages/cli/package.json"), "utf8"));
   assert.equal(manifest.version, identity.version);
   assert.ok(
-    Object.keys(manifest.optionalDependencies).every((name) => name.startsWith("@scriptc/cli-")),
+    Object.keys(manifest.optionalDependencies).every((name) =>
+      name.startsWith("@zshannon/scriptc-cli-"),
+    ),
     "the default CLI must only depend on native host packages",
   );
   manifest.optionalDependencies = Object.fromEntries(
@@ -78,7 +80,7 @@ try {
   const project = join(root, "project");
   mkdirSync(project);
   command(npm, ["install", "--offline", "--no-audit", "--no-fund", tarball], project);
-  const executable = join(project, "node_modules/scriptc/bin/scriptc.exe");
+  const executable = join(project, "node_modules", manifest.name, "bin/scriptc.exe");
   assert.equal(
     command(executable, ["--version"], project, { ...env, PATH: "" }).trim(),
     identity.version,
@@ -99,8 +101,8 @@ try {
   );
   command(executable, ["build", entry, "-o", binary], project, compileEnv);
   assert.equal(command(binary, [], project, { PATH: "" }), "true true true\n");
-  const installed = readdirSync(join(project, "node_modules/@scriptc"));
-  assert.deepEqual(installed, [identity.name.slice("@scriptc/".length)]);
+  const installed = readdirSync(join(project, "node_modules/@zshannon")).sort();
+  assert.deepEqual(installed, ["scriptc", identity.name.slice("@zshannon/".length)].sort());
   console.log(
     JSON.stringify({
       package: identity.name,

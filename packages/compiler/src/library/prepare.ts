@@ -220,6 +220,7 @@ function resolveLibrarySection(
     initSymbol: profile.initSymbol,
     sinkRegisterSymbol: profile.sinkRegisterSymbol,
     collectSymbol: profile.collectSymbol,
+    ...(profile.disposeSymbol !== undefined ? { disposeSymbol: profile.disposeSymbol } : {}),
     resultResetSymbol: profile.resultResetSymbol,
     threadInstances: profile.instancePerThread,
     // Host-callback channels: declaration order is the runtime slot
@@ -697,6 +698,7 @@ export function libraryLocalizeSymbols(profile: LibraryProfile): string[] | unde
         profile.initSymbol,
         profile.sinkRegisterSymbol,
         ...(profile.collectSymbol !== null ? [profile.collectSymbol] : []),
+        ...(profile.disposeSymbol !== undefined ? [profile.disposeSymbol] : []),
         ...(profile.resultResetSymbol !== null ? [profile.resultResetSymbol] : []),
         ...(profile.callbackRegisterSymbol !== null ? [profile.callbackRegisterSymbol] : []),
         ...(profile.sidecar !== null
@@ -713,6 +715,7 @@ export function libraryWasmExports(profile: LibraryProfile): string[] {
     "scriptc_alloc",
     "scriptc_free",
     ...(profile.collectSymbol === null ? [] : [profile.collectSymbol]),
+    ...(profile.disposeSymbol !== undefined ? [profile.disposeSymbol] : []),
     ...(profile.resultResetSymbol === null ? [] : [profile.resultResetSymbol]),
     ...(profile.sidecar === null
       ? []
@@ -730,6 +733,7 @@ export function libraryWasmRefusal(
     profile.initSymbol,
     profile.sinkRegisterSymbol,
     profile.collectSymbol,
+    profile.disposeSymbol,
     profile.resultResetSymbol,
     profile.callbackRegisterSymbol,
     ...profile.exports.map((entry) => entry.symbol),

@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { deserializeModule, validateModule } from "@scriptc/compiler";
+import { deserializeModule, validateModule } from "@zshannon/scriptc-compiler";
 import { afterEach, expect, test } from "vitest";
 
 const execFileAsync = promisify(execFile);

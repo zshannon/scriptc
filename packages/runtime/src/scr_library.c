@@ -425,17 +425,18 @@ static void scr_library_audit_zero(void) {
 
 extern void scr_lib_session_cleanup(void); /* scr_lib.c: the interned process values */
 
-void scr_library_reset(void) {
-  /* Called by the generated init entry AFTER the program TU released and
-   * zeroed its globals (run-once guards included) — the same order the
-   * executable exit path runs: library cleanup → cycle collection → RC
-   * audit. Everything here is re-runnable; the first call is a cheap
-   * no-op pass. */
+void scr_library_dispose(void) {
+  /* The program released and zeroed its globals. Drop session-owned roots
+   * before collecting, while host-owned native references may still live. */
   scr_exc_clear();
   scr_library_arena_reset();
   for (size_t i = 0; i < scr_library_nresets; i++) scr_library_resets[i]();
   scr_lib_session_cleanup();
   scr_collect_cycles();
+}
+
+void scr_library_reset(void) {
+  scr_library_dispose();
 #ifdef SCR_RC_AUDIT
   scr_library_audit_zero();
 #endif

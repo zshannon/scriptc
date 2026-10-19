@@ -5,7 +5,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 
 const repoRoot = join(import.meta.dirname, "../..");
 const cacheDir = join(repoRoot, "node_modules/.cache/scriptc-tests");

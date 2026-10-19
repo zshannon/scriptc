@@ -26,6 +26,7 @@ function context(source: string, filename = "writes.js") {
       assignments.push(node);
   });
   const lowerer = new Lowerer({ getTypeChecker: () => ({}) } as ts.Program, file, []);
+  Object.assign(lowerer.checker, { isTypeAssignableTo: () => true });
   const symbols = new Map<ts.Node, ts.Symbol>();
   const resolve = vi
     .spyOn(lowerer, "resolveValueSymbol")

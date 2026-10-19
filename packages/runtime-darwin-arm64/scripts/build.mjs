@@ -29,7 +29,7 @@ if (
   process.env.SCRIPTC_BUILD_CROSS !== "1" &&
   (process.platform !== "darwin" || process.arch !== "arm64")
 ) {
-  process.stdout.write("@scriptc/runtime-darwin-arm64: skipped on this host\n");
+  process.stdout.write("@zshannon/scriptc-runtime-darwin-arm64: skipped on this host\n");
   process.exit(0);
 }
 
@@ -335,7 +335,7 @@ async function build() {
       package: packageManifest.name,
       version: packageManifest.version,
       target: RUNTIME_PACK_MATRIX.target,
-      runtime_abi: { version: 22, marker: "scr_runtime_abi_v22" },
+      runtime_abi: { version: 1, marker: "scr_zshannon_runtime_abi_v1" },
       compiler: {
         command: compiler,
         identity: compilerVersion,

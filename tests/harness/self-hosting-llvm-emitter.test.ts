@@ -11,7 +11,7 @@ import {
   deserializeModule,
   serializeModule,
   validateModule,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import { emitLlvmModule } from "../../packages/compiler/src/backend/llvm/emitter.js";
 import { type IrModule } from "../../packages/compiler/src/ir/ir.js";
 import { executableLinkFeatures } from "../../packages/compiler/src/backend/executable-features.js";

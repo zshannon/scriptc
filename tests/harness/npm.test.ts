@@ -21,7 +21,7 @@ import { globSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 import { npmCases, type NpmCase } from "./npm-cases.js";
 import { shardSelect, shardSuffix } from "./shard.js";
 

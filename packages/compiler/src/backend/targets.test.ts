@@ -54,7 +54,7 @@ describe("native code-generation targets", () => {
       expect(targets.nativeCodegenTarget({}, "linux", "x64", "6.8.0")).toEqual(target);
       expect(targets.nativeCodegenTargetRefusal({}, "linux", "x64", "6.8.0")).toBeNull();
       expect(targets.nativeHelperForTarget(target, "linux", "x64")?.packageName).toBe(
-        `@scriptc/llvm-linux-x64-${libc}`,
+        `@zshannon/scriptc-llvm-linux-x64-${libc}`,
       );
       expect(
         targets.nativeCodegenTarget({ SCRIPTC_TARGET: "wasm32-wasi" }, "linux", "x64", "6.8.0"),
@@ -160,10 +160,10 @@ describe("native code-generation targets", () => {
       linkerTargetTriple: "x86_64-linux-gnu.2.36",
     });
     expect(nativeHelperForTarget(cross, "darwin", "arm64")?.packageName).toBe(
-      "@scriptc/llvm-darwin-arm64",
+      "@zshannon/scriptc-llvm-darwin-arm64",
     );
     expect(nativeHelperForTarget(MACOS_ARM64_TARGET, "win32", "x64")?.packageName).toBe(
-      "@scriptc/llvm-win32-x64-msvc",
+      "@zshannon/scriptc-llvm-win32-x64-msvc",
     );
     expect(
       nativeCodegenTarget({ SCRIPTC_TARGET: "aarch64-linux-android" }, "win32", "x64", "10.0.0"),

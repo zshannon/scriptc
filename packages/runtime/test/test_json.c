@@ -575,10 +575,113 @@ static void test_primitive_owners(void) {
   check(!scr_dyn_strict_eq(values[1], values[2]), "boolean singleton values remain distinct");
 }
 
+/* A foreign handle may expose ownership alone, or only a subset of reflection. */
+static ScrDyn *foreign_keys(void *value, unsigned mode) {
+  if (mode == 1) return scr_dyn_get_own_property_names(value);
+  if (mode == 2) return scr_dyn_for_in_keys(value);
+  return scr_dyn_obj_keys(value);
+}
+static void test_foreign_optional_callbacks(void) {
+  ScrDynForeignOps ops = {
+    .base = { .cls = "Foreign", .retain = scr_dyn_retain_v, .release = scr_dyn_release_v },
+  };
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, &ops.base);
+  ScrDyn *object = scr_dyn_new_obj();
+  scr_dyn_obj_set(object, "item", 4, scr_dyn_new_num(42));
+  ScrDyn *box = scr_dyn_new_handle(object, SCR_DYNH_FOREIGN);
+  ScrStr *name = S("item");
+  ScrDyn *value = scr_dyn_obj_read(box, "item", 4);
+  check(value && value->kind == SCR_DYN_UNDEF && !scr_exc_pending(), "foreign missing get reads undefined");
+  scr_dyn_release(value);
+  value = scr_dyn_handle_key_get(box, name);
+  check(value && value->kind == SCR_DYN_UNDEF && !scr_exc_pending(), "foreign keyed read without get is undefined");
+  scr_dyn_release(value);
+  check(!scr_dyn_ref_is_array(box) && !scr_exc_pending(), "foreign without array callback is not an array");
+  check(!scr_dyn_has_key(box, name) && !scr_exc_pending(), "foreign without has callback has no modeled key");
+  check(!scr_dyn_property_is_enumerable(box, name) && !scr_exc_pending(), "foreign without has callback is not enumerable");
+  check(!scr_dyn_has_own(box, name) && scr_exc_pending(), "foreign own-property fallback refuses unsupported reflection");
+  scr_exc_clear();
+  check(!scr_dyn_get_prototype(box) && scr_exc_pending(), "foreign prototype fallback refuses unsupported reflection");
+  scr_exc_clear();
+  check(!scr_dyn_get_own_property_names(box) && scr_exc_pending(), "foreign names fallback refuses unsupported reflection");
+  scr_exc_clear();
+  check(!scr_dyn_for_in_keys(box) && scr_exc_pending(), "foreign for-in fallback refuses unsupported reflection");
+  scr_exc_clear();
+  ScrDyn *(*walks[])(const ScrDyn *) = {scr_dyn_obj_keys, scr_dyn_obj_values, scr_dyn_obj_entries};
+  for (size_t i = 0; i < 3; i++) {
+    value = walks[i](box);
+    check(value && value->kind == SCR_DYN_ARR && value->v.arr.len == 0 && !scr_exc_pending(),
+      "foreign without keys exposes no enumerable properties");
+    scr_dyn_release(value);
+  }
+  ops.keys = foreign_keys;
+  value = scr_dyn_obj_keys(box);
+  check(value && value->v.arr.len == 1 && dyn_str_is(value->v.arr.items[0], "item"), "keys-only foreign callback enumerates names");
+  scr_dyn_release(value);
+  value = scr_dyn_obj_values(box);
+  check(value && value->v.arr.len == 1 && value->v.arr.items[0]->kind == SCR_DYN_UNDEF,
+    "keys-only foreign callback reads undefined values without a getter");
+  scr_dyn_release(value);
+  value = scr_dyn_obj_entries(box);
+  check(value && value->v.arr.len == 1 && value->v.arr.items[0]->v.arr.items[1]->kind == SCR_DYN_UNDEF,
+    "keys-only foreign callback enumerates entries without a getter");
+  scr_dyn_release(value);
+  scr_str_release(name); scr_dyn_release(box); scr_dyn_release(object);
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, NULL);
+}
+
+static bool foreign_delete(void *value, const ScrStr *key) {
+  if (str_is(key, "blocked")) return false;
+  if (str_is(key, "throws")) {
+    scr_throw_error_msg(SCR_ERR_RANGE, "host failure", 12);
+    return false;
+  }
+  scr_dyn_key_delete(value, key, true);
+  return !scr_exc_pending();
+}
+static void test_foreign_delete(void) {
+  ScrDynForeignOps ops = {
+    .base = { .cls = "Foreign", .retain = scr_dyn_retain_v, .release = scr_dyn_release_v },
+    .delete_property = foreign_delete,
+  };
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, &ops.base);
+  ScrDyn *object = scr_dyn_new_obj();
+  scr_dyn_obj_set(object, "item", 4, scr_dyn_new_num(42));
+  scr_dyn_obj_set(object, "blocked", 7, scr_dyn_new_num(17));
+  ScrDyn *box = scr_dyn_new_handle(object, SCR_DYNH_FOREIGN);
+  ScrStr *name = S("item");
+  scr_dyn_key_delete(box, name, true);
+  check(!scr_exc_pending() && !scr_dyn_obj_get(object, "item", 4), "foreign deletion mutates the host object");
+  scr_exc_clear(); scr_str_release(name);
+  name = S("blocked");
+  scr_dyn_key_delete(box, name, false);
+  check(!scr_exc_pending() && scr_dyn_obj_get(object, "blocked", 7), "non-strict rejected deletion preserves host property");
+  scr_exc_clear();
+  scr_dyn_key_delete(box, name, true);
+  ScrCaught *error = scr_exc_pending() ? scr_exc_take() : NULL;
+  check(error && error->kind == SCR_EXC_OBJ && str_is(((ScrError *)error->payload)->name, "TypeError"),
+    "strict rejected deletion throws TypeError");
+  scr_caught_release(error); scr_str_release(name);
+  name = S("throws");
+  scr_dyn_key_delete(box, name, true);
+  error = scr_exc_pending() ? scr_exc_take() : NULL;
+  check(error && error->kind == SCR_EXC_OBJ && str_is(((ScrError *)error->payload)->name, "RangeError"),
+    "foreign delete preserves the host exception");
+  scr_caught_release(error);
+  ops.delete_property = NULL;
+  scr_dyn_key_delete(box, name, false);
+  check(scr_exc_pending(), "missing foreign delete retains unsupported-operation fallback");
+  scr_exc_clear(); scr_str_release(name);
+  scr_dyn_release(box); scr_dyn_release(object);
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, NULL);
+}
+
 int main(void) {
   test_class_values();
   scr_init();
   test_primitive_owners();
+  test_foreign_optional_callbacks();
+  test_foreign_delete();
 
   /* ── primitives ─────────────────────────────────────────────────── */
   ScrDyn *d = parse_ok("null", "parse null");

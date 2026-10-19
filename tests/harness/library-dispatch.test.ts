@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WASI } from "node:wasi";
 import { expect, test } from "vitest";
-import { compileLibrary } from "@scriptc/compiler";
+import { compileLibrary } from "@zshannon/scriptc-compiler";
 
 const fixture = join(import.meta.dirname, "../library-mode/wasm/dispatch.mjs");
 const modes = ["native", "sanitized", "wasm-dev"] as const;

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { analyze, compile, deserializeModule, serializeModule } from "@scriptc/compiler";
+import { analyze, compile, deserializeModule, serializeModule } from "@zshannon/scriptc-compiler";
 import { IR_VERSION } from "../../packages/compiler/src/ir/serialize.js";
 import {
   F64,

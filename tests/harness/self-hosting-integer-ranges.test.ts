@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { analyze, compile, serializeModule } from "@scriptc/compiler";
+import { analyze, compile, serializeModule } from "@zshannon/scriptc-compiler";
 import { integerRangeCases } from "./self-hosting-range-cases.js";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));

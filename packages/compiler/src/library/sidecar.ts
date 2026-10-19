@@ -262,6 +262,7 @@ export function abiExportSuffixes(profile: LibraryProfile): string[] {
   if (profile.callbackRegisterSymbol !== null) out.push(strip(profile.callbackRegisterSymbol));
   out.push(strip(profile.initSymbol));
   if (profile.collectSymbol !== null) out.push(strip(profile.collectSymbol));
+  if (profile.disposeSymbol !== undefined) out.push(strip(profile.disposeSymbol));
   if (profile.resultResetSymbol !== null) out.push(strip(profile.resultResetSymbol));
   for (const e of profile.exports) out.push(strip(e.symbol));
   return out;

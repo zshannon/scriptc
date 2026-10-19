@@ -407,6 +407,7 @@ function ffiCallbackDummyLl(callback: IrFfiCallbackParam["callback"]): string {
     case "i64":
     case "u64":
       return "i64 0";
+    case "dyn":
     case "pointer":
       return "ptr null";
     case "void":
@@ -2117,6 +2118,8 @@ export class LlEmitter {
       }
       this.declare(`declare void @scr_library_entry(i1 zeroext, ptr)`);
       this.declare(`declare void @scr_library_reset()`);
+      if (this.mod.lib.disposeSymbol !== undefined)
+        this.declare(`declare void @scr_library_dispose()`);
       this.declare(`declare void @scr_library_check_exc()`);
       this.declare(`declare void @scr_library_set_sink(ptr, ptr)`);
       this.declare(`declare void @scr_library_callback_entry_guard(ptr)`);
@@ -2751,6 +2754,7 @@ export class LlEmitter {
       emitSymConst(lib.callbackRegisterSymbol);
     if (lib.resultResetSymbol !== null) emitSymConst(lib.resultResetSymbol);
     if (lib.collectSymbol !== null) emitSymConst(lib.collectSymbol);
+    if (lib.disposeSymbol !== undefined) emitSymConst(lib.disposeSymbol);
     for (const e of lib.exports) emitSymConst(e.symbol);
     out.push(``);
     if (this.wasi) {
@@ -2810,6 +2814,19 @@ export class LlEmitter {
       const zero = ty === "double" ? f64Lit(0) : ty === "ptr" ? "null" : "false";
       return `  store ${ty} ${zero}, ptr @${mangleGlobal(g.id)} ; ${g.name}`;
     });
+    if (lib.disposeSymbol !== undefined) {
+      out.push(
+        `define void @${lib.disposeSymbol}() ${FN_ATTRS} {`,
+        `entry:`,
+        `  call void @scr_library_entry(i1 zeroext true, ptr ${symConst(lib.disposeSymbol)})`,
+        ...globalReleaseLines("cd"),
+        ...zeroStores,
+        `  call void @scr_library_dispose()`,
+        `  ret void`,
+        `}`,
+        ``,
+      );
+    }
     out.push(
       `define void @${lib.initSymbol}() ${FN_ATTRS} {`,
       `entry:`,

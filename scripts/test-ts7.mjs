@@ -66,7 +66,7 @@ const compilerPackage = JSON.parse(
   readFileSync(resolve(repoRoot, "packages/compiler/package.json"), "utf8"),
 );
 if (compilerPackage.scripts?.build !== "node node_modules/typescript/bin/tsc -p tsconfig.json") {
-  console.error("@scriptc/compiler must build with the TypeScript 7 toolchain");
+  console.error("@zshannon/scriptc-compiler must build with the TypeScript 7 toolchain");
   process.exit(1);
 }
 

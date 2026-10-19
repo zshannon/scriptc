@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { compileLibrary } from "@scriptc/compiler";
+import { compileLibrary } from "@zshannon/scriptc-compiler";
 import { expect, test } from "vitest";
 
 const fixture = join(import.meta.dirname, "../library-mode/wasm");

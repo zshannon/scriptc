@@ -4,7 +4,7 @@ if (
   process.env.SCRIPTC_BUILD_CROSS !== "1" &&
   (process.platform !== "linux" || process.arch !== "x64")
 ) {
-  process.stdout.write("@scriptc/runtime-linux-x64-musl: skipped on this host\n");
+  process.stdout.write("@zshannon/scriptc-runtime-linux-x64-musl: skipped on this host\n");
   process.exit(0);
 }
 process.env.SCRIPTC_RUNTIME_PACK_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));

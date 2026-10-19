@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { compileLibrary } from "@scriptc/compiler";
+import { compileLibrary } from "@zshannon/scriptc-compiler";
 
 test.each(["sample", "@scope/sample"])(
   "explicit library attempts use %s runtime code with installed declaration twins",

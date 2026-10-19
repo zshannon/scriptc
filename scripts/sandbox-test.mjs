@@ -785,7 +785,7 @@ try {
         await execIn(
           worker,
           "pnpm",
-          ["--filter", "@scriptc/llvm-linux-x64-gnu", "build:native"],
+          ["--filter", "@zshannon/scriptc-llvm-linux-x64-gnu", "build:native"],
           {},
           "LLVM helper",
           5 * 60_000,
@@ -793,7 +793,7 @@ try {
         await execIn(
           worker,
           "pnpm",
-          ["--filter", "@scriptc/runtime-linux-x64-gnu", "build:native"],
+          ["--filter", "@zshannon/scriptc-runtime-linux-x64-gnu", "build:native"],
           { CC: "zig", AR: "zig" },
           "runtime pack",
           5 * 60_000,

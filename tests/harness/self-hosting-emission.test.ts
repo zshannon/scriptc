@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { compile, compileC, deserializeModule, serializeModule } from "@scriptc/compiler";
+import { compile, compileC, deserializeModule, serializeModule } from "@zshannon/scriptc-compiler";
 import { emitLlvmModule } from "../../packages/compiler/src/backend/llvm/emitter.js";
 import { scalarizeNumericRecords } from "../../packages/compiler/src/ir/scalar-records.js";
 import { everyStmtList } from "../../packages/compiler/src/ir/traverse.js";

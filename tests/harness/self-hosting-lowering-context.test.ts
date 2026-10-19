@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import type { AnalyzeResult, compile } from "@scriptc/compiler";
+import type { AnalyzeResult, compile } from "@zshannon/scriptc-compiler";
 import { expect, test } from "vitest";
 import { ts7Executable } from "../../packages/compiler/src/frontend/ts7/rpc-api.js";
 

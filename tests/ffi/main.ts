@@ -250,24 +250,22 @@ nativeForeignStart(foreignTick);
 
 let foreignBurstCount = 0;
 let foreignBurstSum = 0;
-let foreignTimerTicks = 0;
+let foreignYielded = false;
 let foreignBurstOrderErrors = 0;
 const foreignBurstNext = [0, 0];
-const foreignTimer = setInterval(() => {
-  foreignTimerTicks++;
-}, 0);
 const foreignBurstTick = (threadId: number, sequence: number) => {
   if (sequence !== foreignBurstNext[threadId]) foreignBurstOrderErrors++;
   foreignBurstNext[threadId] = foreignBurstNext[threadId] + 1;
   foreignBurstCount++;
+  // Observe a ready check-phase task between deliveries, without a timer deadline.
+  if (foreignBurstCount === 1) setImmediate(() => { foreignYielded = true; });
   foreignBurstSum += threadId * 500 + sequence;
   if (foreignBurstCount === 1000) {
     nativeForeignBurstStop(foreignBurstTick);
-    clearInterval(foreignTimer);
     console.log(
       foreignBurstCount,
       foreignBurstSum,
-      foreignTimerTicks > 0,
+      foreignYielded,
       foreignBurstOrderErrors,
     );
     foreignBurstDone = true;

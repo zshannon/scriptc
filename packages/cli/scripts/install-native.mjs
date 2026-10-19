@@ -16,12 +16,12 @@ import { fileURLToPath } from "node:url";
 
 export function nativeCliPackage(platform, architecture, libc) {
   const host = `${platform}-${architecture}`;
-  if (host === "darwin-arm64" || host === "darwin-x64") return `@scriptc/cli-${host}`;
-  if (host === "win32-x64") return "@scriptc/cli-win32-x64-msvc";
+  if (host === "darwin-arm64" || host === "darwin-x64") return `@zshannon/scriptc-cli-${host}`;
+  if (host === "win32-x64") return "@zshannon/scriptc-cli-win32-x64-msvc";
   if (host === "linux-x64" || host === "linux-arm64") {
     if (libc !== "glibc" && libc !== "musl")
       throw new Error("could not identify the Linux C library");
-    return `@scriptc/cli-${host}-${libc === "musl" ? "musl" : "gnu"}`;
+    return `@zshannon/scriptc-cli-${host}-${libc === "musl" ? "musl" : "gnu"}`;
   }
   throw new Error(`scriptc has no native command for ${host}`);
 }

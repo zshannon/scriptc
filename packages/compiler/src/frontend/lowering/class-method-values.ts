@@ -488,8 +488,9 @@ export function finalizeClassMethodValues(lowerer: Lowerer, functions: IrFunctio
     if (usesThis) continue;
     // A method that never uses this remains callable when detached.
     const name = `%method.receiverless:${target.name}`;
+    const { classCaptures: _classCaptures, ...receiverless } = target;
     functions.push({
-      ...target,
+      ...receiverless,
       name,
       params: target.params.slice(1),
       locals: target.locals.filter((local) => local.id !== thisParam.localId),

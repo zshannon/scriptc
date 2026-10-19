@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-import "@scriptc/compiler/cli/wasi-runner";
+import "@zshannon/scriptc-compiler/cli/wasi-runner";

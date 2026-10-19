@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import {
   compileLibrary as compileNodeLibrary,
   type CompileLibraryOptions,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import { NativeCompiler } from "../../packages/compiler/src/native/compiler.js";
 import {
   nativeCodegenTarget,
@@ -56,7 +56,7 @@ describe.skipIf(!hasZig).each(["node", "native"] as const)(
         const helperPackageRoot = join(
           root,
           "packages",
-          host.helper.packageName.replace("@scriptc/", ""),
+          host.helper.packageName.replace("@zshannon/scriptc-", ""),
         );
         const compilerPackage = JSON.parse(
           await readFile(join(root, "packages/compiler/package.json"), "utf8"),
