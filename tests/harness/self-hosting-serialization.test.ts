@@ -12,7 +12,7 @@ import {
   emitLlvmModule,
   serializeModule,
   validateModule,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import { IR_VERSION } from "../../packages/compiler/src/ir/serialize.js";
 import { F64, VOID, type IrModule } from "../../packages/compiler/src/ir/ir.js";
 import { numLit } from "../../packages/compiler/src/ir/build.js";

@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { compile, compileLibrary } from "@scriptc/compiler";
+import { compile, compileLibrary } from "@zshannon/scriptc-compiler";
 import { emitNativeArtifact } from "../../packages/compiler/src/backend/native-codegen.js";
 import { WASM32_WASI_TARGET } from "../../packages/compiler/src/backend/targets.js";
 

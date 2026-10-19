@@ -6,7 +6,7 @@ import type {
   CompileOptions,
   CompileExecutableResult,
   CoverageInput,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 
 const execFileAsync = promisify(execFile);
 const root = fileURLToPath(new URL("../../", import.meta.url));

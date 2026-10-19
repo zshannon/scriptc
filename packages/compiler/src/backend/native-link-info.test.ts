@@ -42,7 +42,7 @@ describe("native link info", () => {
     });
     expect(info.runtime_pack).toEqual({
       kind: "precompiled",
-      package: "@scriptc/runtime-darwin-arm64",
+      package: "@zshannon/scriptc-runtime-darwin-arm64",
       version: "1.2.3",
       root: "/installed/runtime",
       path_base: "runtime_pack.root",

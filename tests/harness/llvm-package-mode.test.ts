@@ -49,7 +49,7 @@ if (process.platform === "win32") {
         execFileSync(process.execPath, [
           join(repoRoot, "scripts", "verify-llvm-package-mode.mjs"),
           join(work, tarball!),
-          `@scriptc/${name}`,
+          `@zshannon/scriptc-${name}`,
         ]);
         execFileSync("tar", ["-xzf", join(work, tarball!), "-C", work]);
         const mode = statSync(join(work, "package", "bin", "scriptc-llvm-codegen")).mode & 0o777;

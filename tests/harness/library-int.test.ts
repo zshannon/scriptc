@@ -39,7 +39,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compileLibrary, renderDiagnostics, validateSidecar } from "@scriptc/compiler";
+import { compileLibrary, renderDiagnostics, validateSidecar } from "@zshannon/scriptc-compiler";
 
 const repoRoot = join(import.meta.dirname, "../..");
 const fixtureRoot = join(repoRoot, "tests/library-mode");

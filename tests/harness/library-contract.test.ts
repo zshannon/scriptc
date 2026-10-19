@@ -28,7 +28,12 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compileLibrary, validateSidecar, wyhash64, type SidecarDoc } from "@scriptc/compiler";
+import {
+  compileLibrary,
+  validateSidecar,
+  wyhash64,
+  type SidecarDoc,
+} from "@zshannon/scriptc-compiler";
 
 import { nmDefined as nmDefinedText } from "./nm-defined.js";
 const repoRoot = join(import.meta.dirname, "../..");

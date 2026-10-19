@@ -100,6 +100,7 @@ export function ffiNativeTypeLl(
     case "i64":
     case "u64":
       return "i64";
+    case "dyn":
     case "pointer":
     case "cstring":
       return "ptr";

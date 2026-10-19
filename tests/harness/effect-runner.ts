@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect } from "vitest";
-import type { CompileResult } from "@scriptc/compiler";
+import type { CompileResult } from "@zshannon/scriptc-compiler";
 
 const exec = promisify(execFile);
 const source = new URL("../../packages/compiler/src/index.ts", import.meta.url).href;

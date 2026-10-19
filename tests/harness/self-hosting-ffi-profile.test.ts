@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { analyze, compile } from "@scriptc/compiler";
+import { analyze, compile } from "@zshannon/scriptc-compiler";
 import type { FfiProfileLoadResult } from "../../packages/compiler/src/ffi/ffi-manifest.js";
 
 const root = join(import.meta.dirname, "../..");

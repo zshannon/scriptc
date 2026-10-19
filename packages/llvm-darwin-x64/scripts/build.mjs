@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 if (process.platform !== "darwin" || process.arch !== "x64") {
-  process.stdout.write("@scriptc/llvm-darwin-x64: skipped on this host\n");
+  process.stdout.write("@zshannon/scriptc-llvm-darwin-x64: skipped on this host\n");
   process.exit(0);
 }
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));

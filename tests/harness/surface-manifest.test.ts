@@ -10,7 +10,7 @@ import {
   renderSurfaceManifest,
   resolveLibraryFences,
   type SurfaceManifest,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 
 const repoRoot = join(import.meta.dirname, "../..");
 const manifestPath = join(repoRoot, "packages/compiler/surface-manifest.json");

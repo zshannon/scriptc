@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { analyze, compile } from "@scriptc/compiler";
+import { analyze, compile } from "@zshannon/scriptc-compiler";
 import { runClient } from "./ts7-client-harness.js";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));

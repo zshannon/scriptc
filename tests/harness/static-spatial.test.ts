@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { rollup } from "rollup";
 import { expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 
 const hasZig = spawnSync("zig", ["version"], { stdio: "ignore" }).status === 0;
 const require = createRequire(import.meta.url);

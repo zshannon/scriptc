@@ -8,6 +8,15 @@ All notable changes to scriptc will be documented in this file.
 
 ## 0.3.6
 
+### zshannon fork
+
+Based on the exact upstream v0.3.6 release commit `fab1a29b333047bf799f6ff498100176c00bb7b7`.
+
+- Distribute the JavaScript API and matching native packs under `@zshannon` with ordinary versions.
+- Preserve native value, callback and disposal fixes with an optional root SwiftPM JavaScriptCore adapter.
+- Use ordinary native RC/cycle collection; reject and remove abandoned host GC/reporting modes.
+- Propose upstream releases weekly through reviewable PRs and publish ordinary npm tarball assets.
+
 ### Features
 
 - **`node:readline` adds terminal mode, cursor helpers and `emitKeypressEvents`,** along with the `history` and `completer` options and the history members.

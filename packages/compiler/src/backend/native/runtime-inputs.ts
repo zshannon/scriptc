@@ -77,7 +77,7 @@ export function runtimeSrcDir(): string {
   const testRoot = process.env["SCRIPTC_TEST_RUNTIME_SRC_DIR"];
   if (testRoot !== undefined) return resolve(testRoot);
   const require = createRequire(import.meta.url);
-  return join(dirname(require.resolve("@scriptc/runtime/package.json")), "src");
+  return join(dirname(require.resolve("@zshannon/scriptc-runtime/package.json")), "src");
 }
 
 /** The library base: the executable lane's unconditional sources minus the

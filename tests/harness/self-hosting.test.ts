@@ -11,7 +11,7 @@ import {
   deserializeModule,
   emitLlvmModule,
   validateModule,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 

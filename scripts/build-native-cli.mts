@@ -70,7 +70,7 @@ execFileSync(
     join(
       root,
       "packages",
-      target.runtimePackPackage.replace("@scriptc/", ""),
+      target.runtimePackPackage.replace("@zshannon/scriptc-", ""),
       "artifacts/vendor/quickjs/libscriptc-quickjs.a",
     ),
     "-lm",

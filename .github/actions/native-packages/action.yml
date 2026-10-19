@@ -41,7 +41,7 @@ runs:
       shell: bash
       env:
         SCRIPTC_PACKAGE_TARGET: ${{ inputs.target }}
-      run: pnpm --filter "@scriptc/llvm-$SCRIPTC_PACKAGE_TARGET" build:native
+      run: pnpm --filter "@zshannon/scriptc-llvm-$SCRIPTC_PACKAGE_TARGET" build:native
     - name: Build runtime pack
       if: steps.runtime.outputs.cache-hit != 'true'
       shell: bash
@@ -49,9 +49,9 @@ runs:
         SCRIPTC_PACKAGE_TARGET: ${{ inputs.target }}
       run: |
         if test "$RUNNER_OS" = Linux; then
-          CC=zig AR=zig pnpm --filter "@scriptc/runtime-$SCRIPTC_PACKAGE_TARGET" build:native
+          CC=zig AR=zig pnpm --filter "@zshannon/scriptc-runtime-$SCRIPTC_PACKAGE_TARGET" build:native
         else
-          pnpm --filter "@scriptc/runtime-$SCRIPTC_PACKAGE_TARGET" build:native
+          pnpm --filter "@zshannon/scriptc-runtime-$SCRIPTC_PACKAGE_TARGET" build:native
         fi
     - name: Verify runtime content
       shell: bash

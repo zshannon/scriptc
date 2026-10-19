@@ -185,6 +185,7 @@ const MODULE_FIELDS: Record<StringFields<Omit<IrModule, "functions">>, Role> = {
   "lib.initSymbol": "other",
   "lib.sinkRegisterSymbol": "other",
   "lib.collectSymbol": "other",
+  "lib.disposeSymbol": "other",
   "lib.resultResetSymbol": "other",
   "lib.callbackRegisterSymbol": "other",
   "lib.callbacks[].name": "other",

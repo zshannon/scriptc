@@ -519,8 +519,8 @@ jobs:
           target: linux-x64-gnu
       - name: Build and verify Linux x64 musl release packages
         run: |
-          pnpm --filter @scriptc/llvm-linux-x64-musl build:native
-          CC=zig AR=zig pnpm --filter @scriptc/runtime-linux-x64-musl build:native
+          pnpm --filter @zshannon/scriptc-llvm-linux-x64-musl build:native
+          CC=zig AR=zig pnpm --filter @zshannon/scriptc-runtime-linux-x64-musl build:native
           helper=packages/llvm-linux-x64-musl/bin/scriptc-llvm-codegen
           readelf -l "$helper" > "$RUNNER_TEMP/musl-helper-program-headers"
           if grep -q INTERP "$RUNNER_TEMP/musl-helper-program-headers"; then
@@ -628,7 +628,7 @@ jobs:
           # This lane verifies packaging and installation with a faster seed.
           SCRIPTC_NATIVE_OPTIMIZATION: dev
         run: |
-          pnpm --filter @scriptc/cli-darwin-arm64 build:native
+          pnpm --filter @zshannon/scriptc-cli-darwin-arm64 build:native
           pnpm --dir packages/runtime pack --pack-destination "$RUNNER_TEMP" --silent
           pnpm --dir packages/runtime-darwin-arm64 pack --pack-destination "$RUNNER_TEMP" --silent
           pnpm --dir packages/compiler pack --pack-destination "$RUNNER_TEMP" --silent
@@ -636,12 +636,12 @@ jobs:
           pnpm --dir packages/cli pack --pack-destination "$RUNNER_TEMP" --silent
           PREFIX="$RUNNER_TEMP/installed-scriptc"
           npm install --prefix "$PREFIX" --no-audit --no-fund \
-            "$RUNNER_TEMP/scriptc-runtime-$(node -p "require('./packages/runtime/package.json').version").tgz" \
-            "$RUNNER_TEMP/scriptc-runtime-darwin-arm64-$(node -p "require('./packages/runtime-darwin-arm64/package.json').version").tgz" \
-            "$RUNNER_TEMP/scriptc-llvm-darwin-arm64-$(node -p "require('./packages/llvm-darwin-arm64/package.json').version").tgz" \
-            "$RUNNER_TEMP/scriptc-compiler-$(node -p "require('./packages/compiler/package.json').version").tgz" \
-            "$RUNNER_TEMP/scriptc-cli-darwin-arm64-$(node -p "require('./packages/cli-darwin-arm64/package.json').version").tgz" \
-            "$RUNNER_TEMP/scriptc-$(node -p "require('./packages/cli/package.json').version").tgz"
+            "$RUNNER_TEMP/zshannon-scriptc-runtime-$(node -p "require('./packages/runtime/package.json').version").tgz" \
+            "$RUNNER_TEMP/zshannon-scriptc-runtime-darwin-arm64-$(node -p "require('./packages/runtime-darwin-arm64/package.json').version").tgz" \
+            "$RUNNER_TEMP/zshannon-scriptc-llvm-darwin-arm64-$(node -p "require('./packages/llvm-darwin-arm64/package.json').version").tgz" \
+            "$RUNNER_TEMP/zshannon-scriptc-compiler-$(node -p "require('./packages/compiler/package.json').version").tgz" \
+            "$RUNNER_TEMP/zshannon-scriptc-cli-darwin-arm64-$(node -p "require('./packages/cli-darwin-arm64/package.json').version").tgz" \
+            "$RUNNER_TEMP/zshannon-scriptc-$(node -p "require('./packages/cli/package.json').version").tgz"
           PATH="" "$PREFIX/node_modules/.bin/scriptc" build tests/corpus/001-hello.ts \
             --emit=obj -o "$RUNNER_TEMP/installed.o"
           file "$RUNNER_TEMP/installed.o" | grep 'Mach-O 64-bit object arm64'
@@ -815,10 +815,10 @@ jobs:
           echo "$llvm\bin" >> $env:GITHUB_PATH
       - run: pnpm install --frozen-lockfile
       - name: Build Windows helper
-        run: pnpm --filter @scriptc/llvm-win32-x64-msvc build:native
+        run: pnpm --filter @zshannon/scriptc-llvm-win32-x64-msvc build:native
       - uses: ./.github/actions/zig
       - name: Build Windows runtime pack
-        run: pnpm --filter @scriptc/runtime-win32-x64-msvc build:native
+        run: pnpm --filter @zshannon/scriptc-runtime-win32-x64-msvc build:native
       - run: pnpm build
       - name: Windows COFF no-clang object contract
         shell: pwsh

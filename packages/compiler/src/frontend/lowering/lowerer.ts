@@ -498,6 +498,7 @@ import {
 import {
   lowerStmts,
   hasJsTypeAnnotation,
+  jsOpenBindingType,
   noteBlockedBindings,
   isBlockedBinding,
   lowerScopedBlock,
@@ -5810,8 +5811,9 @@ export class Lowerer {
         }
         const fields = settledFields(recordFlows.bindingClass(symbol), optionalFields.get(symbol));
         if (!dynamicObjectEntryRows.has(symbol) && !optionalSymbols.has(symbol) && !fields) return;
-        const current = this.mapTypeOf(this.typeOf(node.name));
-        if (!current) return;
+        const mapped = this.mapTypeOf(this.typeOf(node.name));
+        if (!mapped) return;
+        const current = jsOpenBindingType(this, node, mapped);
         let promoted = dynamicObjectEntryRows.has(symbol) ? DYN : current;
         if (!dynamicObjectEntryRows.has(symbol) && optionalSymbols.has(symbol))
           promoted = addUndefined(promoted);
@@ -7433,7 +7435,7 @@ export class Lowerer {
       if (dyn) return dyn;
       this.badType(node, t);
     }
-    return jsOpenObjectType(node, mapped, this.shapes, this.unions);
+    return jsOpenBindingType(this, node, mapped);
   }
 
   /** Exact-shape enforcement (SC2002). Records are monomorphic structs, so

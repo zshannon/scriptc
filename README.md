@@ -1,5 +1,7 @@
 # scriptc
 
+This is the maintained `zshannon/scriptc` fork. The fork distributes the JavaScript compiler API and matching native packs under `@zshannon`; see [fork consumption, releases and upstream updates](RELEASING.md). The upstream project documentation follows below.
+
 <p>
   <a href="https://vercel.com/labs#active-experiments"><img alt="Vercel Labs Experiment" src="https://img.shields.io/badge/LABS-EXPERIMENT-0a0a0a.svg?style=for-the-badge&amp;logo=Vercel&amp;labelColor=000000" height="28"></a>
   <a href="https://www.npmjs.com/package/scriptc"><img alt="npm version: scriptc" src="https://img.shields.io/npm/v/scriptc.svg?style=for-the-badge&amp;labelColor=000000" height="28"></a>

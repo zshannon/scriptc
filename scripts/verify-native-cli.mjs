@@ -5,7 +5,7 @@ import { verifyLinuxAbi } from "./verify-linux-abi.mjs";
 
 const root = realpathSync(resolve(process.argv[2] ?? "."));
 const identity = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const target = identity.name.replace("@scriptc/cli-", "");
+const target = identity.name.replace("@zshannon/scriptc-cli-", "");
 const windows = target.startsWith("win32-");
 const hostPath = (value) => (windows ? value.replaceAll("\\", "/") : value);
 const absolutePath = (value) => isAbsolute(value) || (windows && win32.parse(value).root !== "");

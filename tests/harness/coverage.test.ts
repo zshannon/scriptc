@@ -3,7 +3,12 @@ import { globSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { analyze, coverageEnvelope, coveragePasses, renderCoverage } from "@scriptc/compiler";
+import {
+  analyze,
+  coverageEnvelope,
+  coveragePasses,
+  renderCoverage,
+} from "@zshannon/scriptc-compiler";
 import { shardSelect, shardSuffix } from "./shard.js";
 
 const repoRoot = join(import.meta.dirname, "../..");

@@ -41,7 +41,7 @@ See the [CLI reference](https://scriptc.dev/docs/cli) for every option.
 
 ## Cross-compilation and WebAssembly
 
-Set `SCRIPTC_TARGET` to build for another platform, for example `SCRIPTC_TARGET=aarch64-linux-gnu.2.36` or `SCRIPTC_TARGET=wasm32-wasi`. Install the matching `@scriptc/runtime-<target>` package in your project, at the same version as `scriptc --version`, or set `SCRIPTC_RUNTIME_PACK` to a runtime pack directory. See [platform support](https://scriptc.dev/docs/platforms) and [WebAssembly modules](https://scriptc.dev/docs/wasm).
+Set `SCRIPTC_TARGET` to build for another platform, for example `SCRIPTC_TARGET=aarch64-linux-gnu.2.36` or `SCRIPTC_TARGET=wasm32-wasi`. Install the matching `@zshannon/scriptc-runtime-<target>` package in your project, at the same version as `scriptc --version`, or set `SCRIPTC_RUNTIME_PACK` to a runtime pack directory. See [platform support](https://scriptc.dev/docs/platforms) and [WebAssembly modules](https://scriptc.dev/docs/wasm).
 
 ## Native code
 

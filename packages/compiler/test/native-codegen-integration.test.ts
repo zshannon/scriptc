@@ -16,7 +16,9 @@ const supported =
   Number.parseInt(osRelease().split(".", 1)[0] ?? "", 10) >= 24;
 const repoRoot = join(import.meta.dirname, "../../..");
 const require = createRequire(import.meta.url);
-const helperPackage = supported ? require.resolve("@scriptc/llvm-darwin-arm64/package.json") : "";
+const helperPackage = supported
+  ? require.resolve("@zshannon/scriptc-llvm-darwin-arm64/package.json")
+  : "";
 const helper = supported ? join(dirname(helperPackage), "bin", "scriptc-llvm-codegen") : "";
 const dirs: string[] = [];
 
@@ -312,7 +314,7 @@ ${[0, 1, 2, 3, 4, 5].map((index) => `  call void @add${index}(i64 ${index + 2})`
     expect(await symbols(helperObject, ["-u"])).toEqual(await symbols(clangObject, ["-u"]));
     expect(await symbols(helperObject, ["-gU"])).toEqual(await symbols(clangObject, ["-gU"]));
     expect(await symbols(helperObject, ["-gU"])).toEqual(["0000000000000000 T _main"]);
-    expect(await symbols(helperObject, ["-u"])).toContain("_scr_runtime_abi_v22");
+    expect(await symbols(helperObject, ["-u"])).toContain("_scr_zshannon_runtime_abi_v1");
 
     const clangExe = join(dir, "clang-program");
     const linkDriver = join(dir, "clang-driver.c");
@@ -646,7 +648,7 @@ ${[0, 1, 2, 3, 4, 5].map((index) => `  call void @add${index}(i64 ${index + 2})`
       .split("\n");
     expect(undefinedSymbols).toContain("_sf_scale");
     expect(undefinedSymbols).toContain("_sf_callback_mix");
-    expect(undefinedSymbols).toContain("_scr_runtime_abi_v22");
+    expect(undefinedSymbols).toContain("_scr_zshannon_runtime_abi_v1");
   });
 
   test("helper and clang object paths retain the same outbound FFI C ABI", async () => {

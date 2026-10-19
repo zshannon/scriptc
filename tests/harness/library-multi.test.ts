@@ -126,7 +126,7 @@ import {
   IPHONEOS_MIN_VERSION,
   ANDROID_MIN_API,
   loadLibraryProfile,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 
 import { nmDefined } from "./nm-defined.js";
 const repoRoot = join(import.meta.dirname, "../..");

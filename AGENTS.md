@@ -15,7 +15,7 @@ pnpm install && pnpm -r build   # build the workspace
 pnpm test:sandbox              # full gate: ~4m custom image, ~9m cold managed fallback
 ```
 
-The ordinary workspace build does not rebuild packaged native artifacts. When changing native assembly/object emission or runtime-pack selection, install CMake, Ninja, the pinned LLVM 22 development package, and Zig 0.16.0, then run the matching `@scriptc/llvm-<platform>` and `@scriptc/runtime-<platform>` `build:native` scripts explicitly. The macOS full test suite also needs its generated artifacts.
+The ordinary workspace build does not rebuild packaged native artifacts. When changing native assembly/object emission or runtime-pack selection, install CMake, Ninja, the pinned LLVM 22 development package, and Zig 0.16.0, then run the matching `@zshannon/scriptc-llvm-<platform>` and `@zshannon/scriptc-runtime-<platform>` `build:native` scripts explicitly. The macOS full test suite also needs its generated artifacts.
 
 Use focused local tests while iterating, then use `pnpm test:sandbox` whenever a
 full validation gate is required. It loads Sandbox configuration from the

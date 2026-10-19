@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { expect, test } from "vitest";
-import type { AnalyzeResult, compile } from "@scriptc/compiler";
+import type { AnalyzeResult, compile } from "@zshannon/scriptc-compiler";
 import { ts7Executable } from "../../packages/compiler/src/frontend/ts7/rpc-api.js";
 import type { MappingReport } from "../fixtures/self-hosting/type-mapper-cases.js";
 import { typeMapperInput } from "./self-hosting-type-mapper-input.js";

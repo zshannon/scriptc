@@ -17,7 +17,7 @@ const evaluator = join(stage, "comptime" + (process.platform === "win32" ? ".exe
 
 beforeAll(() => {
   if (target === null) throw new Error("a supported native host is required");
-  const runtime = join(root, target.runtimePackPackage.replace("@scriptc/", ""));
+  const runtime = join(root, target.runtimePackPackage.replace("@zshannon/scriptc-", ""));
   execFileSync(target.defaultLinker, [
     ...target.defaultLinkerArgs,
     "-std=c11",

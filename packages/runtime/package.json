@@ -1,12 +1,12 @@
 {
-  "name": "@scriptc/runtime",
+  "name": "@zshannon/scriptc-runtime",
   "version": "0.3.6",
   "description": "scriptc native runtime sources and vendored dependencies",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vercel-labs/scriptc.git",
+    "url": "git+https://github.com/zshannon/scriptc.git",
     "directory": "packages/runtime"
   },
   "files": [

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { compile, deserializeModule, validateModule } from "@scriptc/compiler";
+import { compile, deserializeModule, validateModule } from "@zshannon/scriptc-compiler";
 import { validatorCases } from "./self-hosting-validator-cases.js";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));

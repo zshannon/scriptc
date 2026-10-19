@@ -148,7 +148,10 @@ export function loadNativeToolchain(
     manifest.runtime_packs?.find((pack) => pack.target === target.name)?.path ??
     (target.name === host.name
       ? manifest.runtime_pack
-      : join(dirname(manifest.runtime_pack), target.runtimePackPackage.replace("@scriptc/", "")));
+      : join(
+          dirname(manifest.runtime_pack),
+          target.runtimePackPackage.replace("@zshannon/scriptc-", ""),
+        ));
   if (
     target.name !== host.name &&
     env["SCRIPTC_RUNTIME_PACK"] === undefined &&

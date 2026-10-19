@@ -42,7 +42,7 @@ See the [test harness guide](./tests/harness/README.md) for focused checks, plat
 
 ## Native artifacts
 
-When changing native assembly or object emission, runtime-pack selection, or the C runtime, rebuild the relevant native artifacts explicitly. Install CMake, Ninja, the pinned LLVM 22 development package, and Zig 0.16.0 on the target host. Run the matching `@scriptc/llvm-<platform>` and `@scriptc/runtime-<platform>` packages' `build:native` scripts. The macOS full test suite also needs those generated artifacts.
+When changing native assembly or object emission, runtime-pack selection, or the C runtime, rebuild the relevant native artifacts explicitly. Install CMake, Ninja, the pinned LLVM 22 development package, and Zig 0.16.0 on the target host. Run the matching `@zshannon/scriptc-llvm-<platform>` and `@zshannon/scriptc-runtime-<platform>` packages' `build:native` scripts. The macOS full test suite also needs those generated artifacts.
 
 ## Runtime headers
 

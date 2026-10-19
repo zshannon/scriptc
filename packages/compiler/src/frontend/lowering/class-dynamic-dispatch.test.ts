@@ -103,7 +103,7 @@ test.each([
     callee: expect.stringMatching(/^%dyn\.class\.(property|computed)\./),
   });
   // The bag dispatch and the member helper; reads also use the read-only bags.
-  expect(liftedFns).toHaveLength(read ? 4 : 2);
+  expect(liftedFns).toHaveLength(read ? (computed ? 4 : 5) : 2);
   if (read)
     expect(liftedFns.map((item) => item.name)).toEqual(
       expect.arrayContaining(["%dyn.class.readProperties", "%dyn.class.readPropertiesOrEmpty"]),
@@ -471,4 +471,132 @@ test("normalizes base capsules before dispatching each derived member once", () 
       },
     ],
   });
+});
+
+test.each([false, true])(
+  "named reads share a direct ordinary fallback (optional=%s)",
+  (optional) => {
+    const { lowerer, boxed, liftedFns } = context();
+    const reads = ["first", "second"].map((key) =>
+      statement({
+        kind: "dynKeyGet",
+        value: variable("receiver"),
+        key: literal(key),
+        ...(optional ? { optional: true as const } : {}),
+        type: DYN,
+        loc,
+      }),
+    );
+    const dispatch = new ClassDynamicDispatch();
+    dispatch.process(lowerer, [boxed, fn("reads", reads)]);
+    dispatch.finalize(lowerer);
+    const selectors = liftedFns.filter((helper) => helper.name.startsWith("%dyn.class.readKey."));
+    expect(selectors).toHaveLength(1);
+    const selector = selectors[0]!;
+    expect(selector.body.at(-1)).toMatchObject({
+      kind: "return",
+      value: {
+        kind: "dynKeyGet",
+        value: { kind: "varRef", localId: "p.0" },
+        key: { kind: "varRef", localId: "p.key" },
+        ...(optional ? { optional: true } : {}),
+      },
+    });
+    const tail = selector.body.at(-1);
+    if (tail?.kind !== "return" || tail.value?.kind !== "dynKeyGet")
+      throw new Error("missing direct fallback");
+    expect(tail.value.optional ?? false).toBe(optional);
+    for (const property of liftedFns.filter((helper) =>
+      helper.name.startsWith("%dyn.class.property."),
+    )) {
+      expect(property.body.at(-1)).toMatchObject({
+        kind: "return",
+        value: { kind: "call", callee: selector.name },
+      });
+      expect(JSON.stringify(property.body)).not.toContain('"localId":"bag.0"');
+    }
+  },
+);
+
+test("named selector preserves constructor bags and name/length/apply exceptions", () => {
+  const { lowerer, boxed, liftedFns } = context();
+  const names = ["value", "name", "length", "apply"];
+  const dispatch = new ClassDynamicDispatch();
+  dispatch.process(lowerer, [
+    boxed,
+    fn(
+      "reads",
+      names.map((name) =>
+        statement({
+          kind: "dynKeyGet",
+          value: variable("receiver"),
+          key: literal(name),
+          type: DYN,
+          loc,
+        }),
+      ),
+    ),
+  ]);
+  const statics = liftedFns.find((helper) => helper.name === "%dyn.class.staticProperties")!;
+  statics.body.unshift({
+    kind: "if",
+    cond: { kind: "boolLit", value: true, type: BOOL, loc },
+    then: [{ kind: "return", value: variable("constructorBag"), loc }],
+    else_: null,
+    loc,
+  });
+  dispatch.finalize(lowerer);
+  const selectors = liftedFns.filter((helper) => helper.name.startsWith("%dyn.class.readKey."));
+  expect(selectors).toHaveLength(2);
+  const properties = liftedFns.filter((helper) => helper.name.startsWith("%dyn.class.property."));
+  const selected = properties.map((property) => {
+    const tail = property.body.at(-1);
+    expect(tail).toMatchObject({ kind: "return", value: { kind: "call" } });
+    if (tail?.kind !== "return" || tail.value?.kind !== "call")
+      throw new Error("missing read selector");
+    const callee = tail.value.callee;
+    return selectors.find((selector) => selector.name === callee)!;
+  });
+  expect(JSON.stringify(selected[0]!.body)).toContain('"localId":"constructorBag"');
+  for (const selector of selected.slice(1)) {
+    expect(selector).toBe(selected[1]);
+    expect(JSON.stringify(selector.body)).not.toContain('"localId":"constructorBag"');
+    expect(selector.body.at(-1)).toMatchObject({ kind: "return", value: { kind: "dynKeyGet" } });
+  }
+});
+
+test("named selector keeps native lazy bags owned and preserves the accessor receiver", () => {
+  const { lowerer, boxed, liftedFns } = context();
+  lowerer.coerceToExpected = (value, type) =>
+    value.type.kind === type.kind ? value : { kind: "dynFrom", value, type, loc };
+  lowerer.classes.set("Widget", {
+    def: { name: "Widget", fields: [] },
+    fields: new Map(),
+    methods: new Map(),
+    subclasses: [],
+    base: null,
+  } as unknown as ClassInfo);
+  const dispatch = new ClassDynamicDispatch();
+  dispatch.process(lowerer, [
+    boxed,
+    fn("reads", [
+      statement({
+        kind: "dynKeyGet",
+        value: variable("receiver"),
+        key: literal("unknown"),
+        type: DYN,
+        loc,
+      }),
+    ]),
+  ]);
+  dispatch.finalize(lowerer);
+  const selector = liftedFns.find((helper) => helper.name.startsWith("%dyn.class.readKey."))!;
+  expect(selector).toBeDefined();
+  const text = JSON.stringify(selector.body);
+  expect(text).toContain('"className":"Widget","field":"%dynProperties"');
+  expect(text).not.toContain('"kind":"fieldSet"');
+  expect(text).toContain('"kind":"varDecl"');
+  expect(text).toContain('"fn":"dyn.bagGet"');
+  expect(text).toContain('"localId":"p.0"');
+  expect(selector.body.at(-1)).toMatchObject({ kind: "return", value: { kind: "dynKeyGet" } });
 });

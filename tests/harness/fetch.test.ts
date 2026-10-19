@@ -6,7 +6,7 @@ import { createServer as createHttpsServer } from "node:https";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { analyze, compile } from "@scriptc/compiler";
+import { analyze, compile } from "@zshannon/scriptc-compiler";
 // The servers live in the fixture tree (a plain .mjs): the Linux lane runs
 // the IDENTICAL routes standalone inside its container.
 // eslint-disable-next-line import/no-relative-packages

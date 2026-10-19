@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { RUNTIME_ABI_MARKER, RUNTIME_ABI_VERSION } from "../backend/runtime-abi.js";
 import type { RuntimePackManifest } from "../backend/runtime-pack-core.js";
-import { NATIVE_TARGETS } from "../backend/targets.js";
-import { buildSanitizedRuntime } from "./sanitizer.js";
+import { MACOS_ARM64_TARGET, NATIVE_TARGETS } from "../backend/targets.js";
+import { buildSanitizedRuntime, sanitizerFlags } from "./sanitizer.js";
 
 test.skipIf(process.platform !== "linux" && process.platform !== "darwin")(
   "sanitized vendor archives compile with host libc declarations",
@@ -128,3 +128,22 @@ test.skipIf(process.platform !== "linux" && process.platform !== "darwin")(
     }
   },
 );
+
+const toolchain = {
+  compilerVersion: "0.0.0",
+  target: MACOS_ARM64_TARGET,
+  helper: MACOS_ARM64_TARGET.helper,
+  ts7Executable: "unused",
+  helperExecutable: "unused",
+  helperPackageRoot: "unused",
+  runtimePackRoot: "unused",
+  linker: "clang",
+  linkerArgs: [],
+  dsymutil: "unused",
+};
+
+test("native sanitizers retain ASan access and stack lifetime checks", () => {
+  const flags = sanitizerFlags(toolchain, "release");
+  expect(flags).toContain("-fsanitize=address");
+  expect(flags).not.toContain("-fsanitize-address-use-after-return=never");
+});

@@ -17,10 +17,10 @@ function declarationPath(name: string): string {
   return tsgoPath(
     installedDeclarationRoot === null
       ? name === "scriptc.d.ts"
-        ? require.resolve("@scriptc/compiler/scriptc.d.ts")
+        ? require.resolve("@zshannon/scriptc-compiler/scriptc.d.ts")
         : name === "scriptc-overrides.d.ts"
-          ? require.resolve("@scriptc/compiler/scriptc-overrides.d.ts")
-          : require.resolve("@scriptc/compiler/scriptc-node-fallback.d.ts")
+          ? require.resolve("@zshannon/scriptc-compiler/scriptc-overrides.d.ts")
+          : require.resolve("@zshannon/scriptc-compiler/scriptc-node-fallback.d.ts")
       : join(installedDeclarationRoot, name),
   );
 }

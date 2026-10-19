@@ -9361,10 +9361,16 @@ export function lowerNew(lowerer: Lowerer, expr: ts.NewExpression): IrExpr {
   }
   // Checked construction supports emitted classes and builtin typed arrays.
   const callee = tryLowerExpression(lowerer, expr.expression);
+  const nullableCallable =
+    callee?.type.kind === "union" &&
+    isJsSourceFile(expr.getSourceFile()) &&
+    lowerer.unions
+      .get(callee.type.unionId)
+      ?.arms.every((arm) => arm.kind === "func" || isUnitType(arm));
   if (
     callee &&
     (callee.type.kind === "dyn" ||
-      ((callee.type.kind === "func" || callee.type.kind === "classval") &&
+      ((callee.type.kind === "func" || callee.type.kind === "classval" || nullableCallable) &&
         lowerer.dynConvertible(callee.type)))
   ) {
     return lowerCheckedConstructor(lowerer, expr, lowerer.coerceToExpected(callee, DYN));

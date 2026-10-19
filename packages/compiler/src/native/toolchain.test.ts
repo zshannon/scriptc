@@ -117,7 +117,7 @@ test("cross-target packs can be added to a project after the compiler is install
   const installation = join(root, "compiler", "bin");
   const project = join(root, "project");
   const nested = join(project, "src", "nested");
-  const pack = join(project, "node_modules/@scriptc/runtime-wasm32-wasi");
+  const pack = join(project, "node_modules/@zshannon/scriptc-runtime-wasm32-wasi");
   mkdirSync(installation, { recursive: true });
   mkdirSync(nested, { recursive: true });
   const path = join(installation, "scriptc.json");
@@ -140,7 +140,7 @@ test("cross-target packs can be added to a project after the compiler is install
     mkdirSync(pack, { recursive: true });
     writeFileSync(
       join(pack, "package.json"),
-      JSON.stringify({ name: "@scriptc/runtime-wasm32-wasi", version: "1.2.3" }),
+      JSON.stringify({ name: "@zshannon/scriptc-runtime-wasm32-wasi", version: "1.2.3" }),
     );
     expect(loadNativeToolchain(path, env, nested).runtimePackRoot).toBe(pack);
     expect(

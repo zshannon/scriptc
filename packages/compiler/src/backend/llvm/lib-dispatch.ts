@@ -436,7 +436,9 @@ export function emitGenericLibCall(host: LlvmEmitterContext, e: LibCallExpr): Ll
   const args = READ_ONLY_STRING_LIB_FNS.has(e.fn)
     ? emitBorrowedInputs(host, e.args)
     : e.args.map((a) =>
-        borrowsJsonInputs(e.fn) || borrowsIteratorInputs(e.fn)
+        // bagGet borrows inputs but may run accessors: only stable bindings
+        // can lend them, exactly like callback-capable JSON/iterator calls.
+        e.fn === "dyn.bagGet" || borrowsJsonInputs(e.fn) || borrowsIteratorInputs(e.fn)
           ? emitBorrowedInput(host, a)
           : host.emitExpr(a),
       );

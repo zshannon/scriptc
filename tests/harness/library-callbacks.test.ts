@@ -67,7 +67,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compileLibrary } from "@scriptc/compiler";
+import { compileLibrary } from "@zshannon/scriptc-compiler";
 
 import { nmDefined } from "./nm-defined.js";
 const repoRoot = join(import.meta.dirname, "../..");

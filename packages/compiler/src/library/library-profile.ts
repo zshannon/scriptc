@@ -188,10 +188,12 @@
  *   - `params`: f64, bool, string, bytes, and the u8/u32/i32 plumbing
  *     classes (outbound plumbing rides JS's own ToUint32/ToInt32, the
  *     executable FFI lane's rule). string/bytes arrive as (ptr, len)
- *     pairs BORROWED for the duration of the call only.
- *   - `returns`: f64, bool, u8, u32, i32, or void — scalars only (a
- *     buffer return needs an ownership contract the mode does not define,
- *     the FFI format-1 ruling).
+ *     pairs BORROWED for the duration of the call only. Native `dyn`
+ *     parameters borrow a ScrDyn pointer from this library instance; the
+ *     host retains it through the matching runtime when keeping it.
+ *   - `returns`: f64, bool, u8, u32, i32, void, or native `dyn`. A dyn
+ *     result transfers one owned reference from the same instance. Buffer
+ *     results remain refused: their ownership contract is not defined.
  *
  * The registration symbol's C shape, one per profile:
  *
@@ -233,7 +235,10 @@
  * callback returns. The sidecar identity getters are the explicit pure-data
  * exception: they touch no mutable runtime state and remain callable before
  * init and after poison. The async_free posture is unchanged: a channel
- * adds no event loop, no threads, and no reentry into the archive.
+ * adds no event loop, no threads, and no reentry through the scalar ABI.
+ * Retained callable values may instead be invoked through the runtime
+ * value API: these ordinary nested calls preserve the existing call stack
+ * and never run an ABI entry prologue or reset the result arena.
  *
  * Marshalling classes (design §4.2 + session ruling 3 + ask 4): f64, bool,
  * string, bytes for params and returns; u8/u32/i32 are PARAM-ONLY plumbing
@@ -297,12 +302,21 @@ export type LibReturnClass = (typeof LIB_RETURN_CLASSES)[number];
  * declared integer classes stay export-map surface: an outbound i64/u64
  * demands the prove-or-refuse machinery, which is scoped to export
  * returns today. */
-const LIB_CALLBACK_PARAM_CLASSES = ["f64", "bool", "string", "bytes", "u8", "u32", "i32"] as const;
+const LIB_CALLBACK_PARAM_CLASSES = [
+  "f64",
+  "bool",
+  "string",
+  "bytes",
+  "u8",
+  "u32",
+  "i32",
+  "dyn",
+] as const;
 /** Marshalling classes legal in a CALLBACK RETURN position (inbound: host
  * → compiled code). Scalars only — every conversion to f64 is exact by
  * construction; a buffer return would need an ownership contract the mode
  * does not define (the FFI format-1 ruling). */
-const LIB_CALLBACK_RETURN_CLASSES = ["f64", "bool", "u8", "u32", "i32", "void"] as const;
+const LIB_CALLBACK_RETURN_CLASSES = ["f64", "bool", "u8", "u32", "i32", "void", "dyn"] as const;
 /** The runtime's fixed channel-slot capacity (scr_library.c's
  * SCR_LIB_MAX_CALLBACKS — keep the two in step). */
 const LIB_MAX_CALLBACKS = 32;
@@ -398,6 +412,8 @@ export interface LibraryProfile {
    * runtime cycle collector; snapshot-invariant, arena-resetting). Null =
    * the profile declares none. */
   collectSymbol: string | null;
+  /** Optional session shutdown: releases/zeros globals without reevaluation. */
+  disposeSymbol?: string;
   /** §4.3: declared → results accumulate until the host calls it; null →
    * every entry prologue resets the result arena. */
   resultResetSymbol: string | null;
@@ -532,6 +548,9 @@ export function loadLibraryProfile(
           "emission",
           "optimization",
           "npm_static",
+          "native_value_interop",
+          "jsc_gc",
+          "jsc_gc_stack_roots",
           "abi",
           "exports",
           "callbacks",
@@ -563,6 +582,20 @@ export function loadLibraryProfile(
       );
     }
     const npmStatic = [...new Set(npmStaticRaw as string[])];
+    const nativeValueInterop =
+      p["native_value_interop"] === undefined
+        ? false
+        : req<boolean>(p["native_value_interop"], "native_value_interop", "boolean");
+    const jscGc =
+      p["jsc_gc"] === undefined ? false : req<boolean>(p["jsc_gc"], "jsc_gc", "boolean");
+    const jscGcStackRoots =
+      p["jsc_gc_stack_roots"] === undefined
+        ? false
+        : req<boolean>(p["jsc_gc_stack_roots"], "jsc_gc_stack_roots", "boolean");
+    if (nativeValueInterop || jscGc || jscGcStackRoots)
+      throw new ProfileError(
+        "unsupported ownership experiment: native_value_interop, jsc_gc and jsc_gc_stack_roots must be disabled; use ordinary native ownership with boundary lifetime management",
+      );
     if (name === "") throw new ProfileError("'name' must be a non-empty identity string");
     const entryRel = req<string>(p["entry"], "entry", "string");
     if (entryRel === "") throw new ProfileError("'entry' must name the profile's one entry module");
@@ -590,6 +623,7 @@ export function loadLibraryProfile(
       "init_symbol",
       "sink_register_symbol",
       "collect_symbol",
+      "dispose_symbol",
       "result_reset_symbol",
       "localize_runtime",
       "instance_per_thread",
@@ -608,6 +642,7 @@ export function loadLibraryProfile(
       false,
     )!;
     const collectSymbol = symbolField(a["collect_symbol"], "abi.collect_symbol", prefix, true);
+    const disposeSymbol = symbolField(a["dispose_symbol"], "abi.dispose_symbol", prefix, true);
     const resultResetSymbol = symbolField(
       a["result_reset_symbol"],
       "abi.result_reset_symbol",
@@ -892,6 +927,7 @@ export function loadLibraryProfile(
     claim(initSymbol, "abi.init_symbol");
     claim(sinkRegisterSymbol, "abi.sink_register_symbol");
     claim(collectSymbol, "abi.collect_symbol");
+    claim(disposeSymbol, "abi.dispose_symbol");
     claim(resultResetSymbol, "abi.result_reset_symbol");
     claim(callbackRegisterSymbol, "abi.callback_register_symbol");
     if (sidecar !== null) {
@@ -1021,6 +1057,7 @@ export function loadLibraryProfile(
         initSymbol,
         sinkRegisterSymbol,
         collectSymbol,
+        ...(disposeSymbol !== null ? { disposeSymbol } : {}),
         resultResetSymbol,
         localizeRuntime,
         instancePerThread,

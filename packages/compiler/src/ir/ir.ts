@@ -1010,7 +1010,8 @@ export type IrFfiValueParamClass =
   | "pointer"
   | "string"
   | "bytes"
-  | "mutable-bytes";
+  | "mutable-bytes"
+  | "dyn";
 export type IrFfiCallbackParamClass =
   | "f64"
   | "f32"
@@ -1026,7 +1027,8 @@ export type IrFfiCallbackParamClass =
   | "pointer"
   | "cstring"
   | "string"
-  | "bytes";
+  | "bytes"
+  | "dyn";
 export type IrFfiReturnClass =
   | "f64"
   | "f32"
@@ -1040,7 +1042,8 @@ export type IrFfiReturnClass =
   | "i64"
   | "u64"
   | "pointer"
-  | "void";
+  | "void"
+  | "dyn";
 
 export interface IrFfiContextParam {
   /** Manifest-local id of the callback whose ScrClosure* occupies this ABI slot. */
@@ -1094,6 +1097,8 @@ export function ffiClassType(
   cls: IrFfiCallbackParamClass | IrFfiValueParamClass | IrFfiReturnClass,
 ): IrType {
   switch (cls) {
+    case "dyn":
+      return DYN;
     case "i64":
     case "u64":
     case "pointer":
@@ -1210,8 +1215,8 @@ export interface IrLibCallback {
   name: string;
   /** The runtime channel slot (profile declaration order). */
   slot: number;
-  params: ("f64" | "bool" | "string" | "bytes" | "u8" | "u32" | "i32")[];
-  returns: "f64" | "bool" | "u8" | "u32" | "i32" | "i64" | "u64" | "pointer" | "void";
+  params: ("f64" | "bool" | "string" | "bytes" | "u8" | "u32" | "i32" | "dyn")[];
+  returns: "f64" | "bool" | "u8" | "u32" | "i32" | "i64" | "u64" | "pointer" | "void" | "dyn";
   /** The unregistered-call trap text (a DETECTED trap: plain bytes the
    * library funnel classifies SC4025 and assembles with the current
    * entry's symbol — unlike the SC4012 wrapper traps, the entry is only
@@ -1230,6 +1235,8 @@ export interface IrLibSection {
   /** The mode-provided collect entry (cycle collector + arena reset), or
    * null when the profile declares none. */
   collectSymbol: string | null;
+  /** Optional mode-provided shutdown, absent on unchanged profiles. */
+  disposeSymbol?: string;
   /** The declared result-arena reset entry; null selects the auto-reset
    * posture (every entry prologue resets the arena). */
   resultResetSymbol: string | null;

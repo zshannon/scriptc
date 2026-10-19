@@ -41,14 +41,14 @@ export function stageNativeCliAssets(options: {
   mkdirSync(lib, { recursive: true });
   cpSync(join(repository, "LICENSE"), join(output, "LICENSE"));
   const helper = join(lib, "llvm");
-  const runtime = join(lib, target.runtimePackPackage.replace("@scriptc/", ""));
+  const runtime = join(lib, target.runtimePackPackage.replace("@zshannon/scriptc-", ""));
   copyPackage(
-    join(repository, "packages", target.helper.packageName.replace("@scriptc/", "")),
+    join(repository, "packages", target.helper.packageName.replace("@zshannon/scriptc-", "")),
     helper,
     ["bin"],
   );
   copyPackage(
-    join(repository, "packages", target.runtimePackPackage.replace("@scriptc/", "")),
+    join(repository, "packages", target.runtimePackPackage.replace("@zshannon/scriptc-", "")),
     runtime,
     ["artifacts", "runtime-pack.json"],
   );

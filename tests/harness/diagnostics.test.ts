@@ -7,7 +7,7 @@ import { globSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compile, renderDiagnostics } from "@scriptc/compiler";
+import { compile, renderDiagnostics } from "@zshannon/scriptc-compiler";
 
 const repoRoot = join(import.meta.dirname, "../..");
 const diagDir = join(repoRoot, "tests/diagnostics");

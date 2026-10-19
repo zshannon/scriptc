@@ -96,7 +96,7 @@ for (const backend of ["llvm"] as const) {
       const packageDir = join(
         root,
         "packages",
-        hostTarget.runtimePackPackage.replace("@scriptc/", ""),
+        hostTarget.runtimePackPackage.replace("@zshannon/scriptc-", ""),
       );
       const installed = JSON.parse(
         readFileSync(join(packageDir, "runtime-pack.json"), "utf8"),

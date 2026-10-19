@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 if (process.platform !== "darwin" || process.arch !== "arm64") {
-  process.stdout.write("@scriptc/llvm-darwin-arm64: skipped on this host\n");
+  process.stdout.write("@zshannon/scriptc-llvm-darwin-arm64: skipped on this host\n");
   process.exit(0);
 }
 

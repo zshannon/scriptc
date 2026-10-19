@@ -8,7 +8,7 @@ import { cmakeGeneratorArgs, cmakeReleaseOutput } from "./cmake-config.mjs";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 if (process.platform !== "win32" || process.arch !== "x64") {
-  process.stdout.write("@scriptc/llvm-win32-x64-msvc: skipped on this host\n");
+  process.stdout.write("@zshannon/scriptc-llvm-win32-x64-msvc: skipped on this host\n");
   process.exit(0);
 }
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));

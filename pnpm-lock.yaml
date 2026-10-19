@@ -61,29 +61,29 @@ importers:
 
   packages/cli:
     devDependencies:
-      '@scriptc/compiler':
+      '@zshannon/scriptc-compiler':
         specifier: workspace:*
         version: link:../compiler
     optionalDependencies:
-      '@scriptc/cli-darwin-arm64':
+      '@zshannon/scriptc-cli-darwin-arm64':
         specifier: workspace:*
         version: link:../cli-darwin-arm64
-      '@scriptc/cli-darwin-x64':
+      '@zshannon/scriptc-cli-darwin-x64':
         specifier: workspace:*
         version: link:../cli-darwin-x64
-      '@scriptc/cli-linux-arm64-gnu':
+      '@zshannon/scriptc-cli-linux-arm64-gnu':
         specifier: workspace:*
         version: link:../cli-linux-arm64-gnu
-      '@scriptc/cli-linux-arm64-musl':
+      '@zshannon/scriptc-cli-linux-arm64-musl':
         specifier: workspace:*
         version: link:../cli-linux-arm64-musl
-      '@scriptc/cli-linux-x64-gnu':
+      '@zshannon/scriptc-cli-linux-x64-gnu':
         specifier: workspace:*
         version: link:../cli-linux-x64-gnu
-      '@scriptc/cli-linux-x64-musl':
+      '@zshannon/scriptc-cli-linux-x64-musl':
         specifier: workspace:*
         version: link:../cli-linux-x64-musl
-      '@scriptc/cli-win32-x64-msvc':
+      '@zshannon/scriptc-cli-win32-x64-msvc':
         specifier: workspace:*
         version: link:../cli-win32-x64-msvc
 
@@ -103,7 +103,7 @@ importers:
 
   packages/compiler:
     dependencies:
-      '@scriptc/runtime':
+      '@zshannon/scriptc-runtime':
         specifier: workspace:*
         version: link:../runtime
       typescript:
@@ -113,58 +113,58 @@ importers:
         specifier: npm:typescript@5.9.3
         version: typescript@5.9.3
     optionalDependencies:
-      '@scriptc/llvm-darwin-arm64':
+      '@zshannon/scriptc-llvm-darwin-arm64':
         specifier: workspace:*
         version: link:../llvm-darwin-arm64
-      '@scriptc/llvm-darwin-x64':
+      '@zshannon/scriptc-llvm-darwin-x64':
         specifier: workspace:*
         version: link:../llvm-darwin-x64
-      '@scriptc/llvm-linux-arm64-gnu':
+      '@zshannon/scriptc-llvm-linux-arm64-gnu':
         specifier: workspace:*
         version: link:../llvm-linux-arm64-gnu
-      '@scriptc/llvm-linux-arm64-musl':
+      '@zshannon/scriptc-llvm-linux-arm64-musl':
         specifier: workspace:*
         version: link:../llvm-linux-arm64-musl
-      '@scriptc/llvm-linux-x64-gnu':
+      '@zshannon/scriptc-llvm-linux-x64-gnu':
         specifier: workspace:*
         version: link:../llvm-linux-x64-gnu
-      '@scriptc/llvm-linux-x64-musl':
+      '@zshannon/scriptc-llvm-linux-x64-musl':
         specifier: workspace:*
         version: link:../llvm-linux-x64-musl
-      '@scriptc/llvm-win32-x64-msvc':
+      '@zshannon/scriptc-llvm-win32-x64-msvc':
         specifier: workspace:*
         version: link:../llvm-win32-x64-msvc
-      '@scriptc/runtime-android-arm64':
+      '@zshannon/scriptc-runtime-android-arm64':
         specifier: workspace:*
         version: link:../runtime-android-arm64
-      '@scriptc/runtime-darwin-arm64':
+      '@zshannon/scriptc-runtime-darwin-arm64':
         specifier: workspace:*
         version: link:../runtime-darwin-arm64
-      '@scriptc/runtime-darwin-x64':
+      '@zshannon/scriptc-runtime-darwin-x64':
         specifier: workspace:*
         version: link:../runtime-darwin-x64
-      '@scriptc/runtime-ios-arm64':
+      '@zshannon/scriptc-runtime-ios-arm64':
         specifier: workspace:*
         version: link:../runtime-ios-arm64
-      '@scriptc/runtime-ios-simulator-arm64':
+      '@zshannon/scriptc-runtime-ios-simulator-arm64':
         specifier: workspace:*
         version: link:../runtime-ios-simulator-arm64
-      '@scriptc/runtime-linux-arm64-gnu':
+      '@zshannon/scriptc-runtime-linux-arm64-gnu':
         specifier: workspace:*
         version: link:../runtime-linux-arm64-gnu
-      '@scriptc/runtime-linux-arm64-musl':
+      '@zshannon/scriptc-runtime-linux-arm64-musl':
         specifier: workspace:*
         version: link:../runtime-linux-arm64-musl
-      '@scriptc/runtime-linux-x64-gnu':
+      '@zshannon/scriptc-runtime-linux-x64-gnu':
         specifier: workspace:*
         version: link:../runtime-linux-x64-gnu
-      '@scriptc/runtime-linux-x64-musl':
+      '@zshannon/scriptc-runtime-linux-x64-musl':
         specifier: workspace:*
         version: link:../runtime-linux-x64-musl
-      '@scriptc/runtime-wasm32-wasi':
+      '@zshannon/scriptc-runtime-wasm32-wasi':
         specifier: workspace:*
         version: link:../runtime-wasm32-wasi
-      '@scriptc/runtime-win32-x64-msvc':
+      '@zshannon/scriptc-runtime-win32-x64-msvc':
         specifier: workspace:*
         version: link:../runtime-win32-x64-msvc
 

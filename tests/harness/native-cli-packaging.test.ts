@@ -28,8 +28,11 @@ function fixture(windows = true) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, data);
   };
-  const identity = { name: `@scriptc/cli-${platform}`, version: "1.2.3" };
-  const runtimeIdentity = { name: `@scriptc/runtime-${platform}`, version: identity.version };
+  const identity = { name: `@zshannon/scriptc-cli-${platform}`, version: "1.2.3" };
+  const runtimeIdentity = {
+    name: `@zshannon/scriptc-runtime-${platform}`,
+    version: identity.version,
+  };
   const runtime = {
     schema: "scriptc.runtime-pack.v1",
     package: runtimeIdentity.name,

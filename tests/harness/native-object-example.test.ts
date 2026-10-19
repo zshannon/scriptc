@@ -33,7 +33,7 @@ describe.runIf(supported)("external native object example", () => {
     writeFileSync(
       join(runtimeRoot, "package.json"),
       JSON.stringify({
-        name: "@scriptc/runtime",
+        name: "@zshannon/scriptc-runtime",
         version: "2.0.0",
       }),
     );
@@ -45,7 +45,7 @@ describe.runIf(supported)("external native object example", () => {
       JSON.stringify({
         schema: "scriptc.native-link-info.v1",
         runtime_pack: {
-          package: "@scriptc/runtime",
+          package: "@zshannon/scriptc-runtime",
           version: "1.0.0",
           root: runtimeRoot,
           objects: [],
@@ -71,7 +71,7 @@ describe.runIf(supported)("external native object example", () => {
       failure = error as { stderr?: Buffer };
     }
     expect(failure?.stderr?.toString("utf8")).toContain(
-      "runtime pack identity mismatch: expected @scriptc/runtime@1.0.0",
+      "runtime pack identity mismatch: expected @zshannon/scriptc-runtime@1.0.0",
     );
     expect(existsSync(trapLog)).toBe(false);
   });

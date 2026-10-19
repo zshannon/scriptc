@@ -155,43 +155,43 @@ const X64_COFF_LAYOUT =
 const WASI_LAYOUT = "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-i128:128-n32:64-S128-ni:1:10:20";
 
 const DARWIN_ARM64_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-darwin-arm64",
+  packageName: "@zshannon/scriptc-llvm-darwin-arm64",
   defaultTarget: "arm64-apple-macosx14.0.0",
   defaultDataLayout: ARM64_DARWIN_LAYOUT,
   backend: "AArch64",
 };
 const DARWIN_X64_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-darwin-x64",
+  packageName: "@zshannon/scriptc-llvm-darwin-x64",
   defaultTarget: "x86_64-apple-macosx14.0.0",
   defaultDataLayout: X64_DARWIN_LAYOUT,
   backend: "X86",
 };
 const LINUX_X64_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-linux-x64-gnu",
+  packageName: "@zshannon/scriptc-llvm-linux-x64-gnu",
   defaultTarget: "x86_64-unknown-linux-gnu",
   defaultDataLayout: X64_ELF_LAYOUT,
   backend: "X86",
 };
 const LINUX_ARM64_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-linux-arm64-gnu",
+  packageName: "@zshannon/scriptc-llvm-linux-arm64-gnu",
   defaultTarget: "aarch64-unknown-linux-gnu",
   defaultDataLayout: ARM64_ELF_LAYOUT,
   backend: "AArch64",
 };
 const LINUX_X64_MUSL_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-linux-x64-musl",
+  packageName: "@zshannon/scriptc-llvm-linux-x64-musl",
   defaultTarget: "x86_64-unknown-linux-musl",
   defaultDataLayout: X64_ELF_LAYOUT,
   backend: "X86",
 };
 const LINUX_ARM64_MUSL_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-linux-arm64-musl",
+  packageName: "@zshannon/scriptc-llvm-linux-arm64-musl",
   defaultTarget: "aarch64-unknown-linux-musl",
   defaultDataLayout: ARM64_ELF_LAYOUT,
   backend: "AArch64",
 };
 const WINDOWS_X64_HELPER: NativeHelperSpec = {
-  packageName: "@scriptc/llvm-win32-x64-msvc",
+  packageName: "@zshannon/scriptc-llvm-win32-x64-msvc",
   defaultTarget: "x86_64-pc-windows-msvc",
   defaultDataLayout: X64_COFF_LAYOUT,
   backend: "X86",
@@ -223,7 +223,7 @@ export const MACOS_ARM64_TARGET: NativeTargetSpec = {
   helperPackage: DARWIN_ARM64_HELPER.packageName,
   helper: DARWIN_ARM64_HELPER,
   llvmBackend: "AArch64",
-  runtimePackPackage: "@scriptc/runtime-darwin-arm64",
+  runtimePackPackage: "@zshannon/scriptc-runtime-darwin-arm64",
 };
 
 export const MACOS_X64_TARGET: NativeTargetSpec = {
@@ -252,7 +252,7 @@ export const MACOS_X64_TARGET: NativeTargetSpec = {
   helperPackage: DARWIN_X64_HELPER.packageName,
   helper: DARWIN_X64_HELPER,
   llvmBackend: "X86",
-  runtimePackPackage: "@scriptc/runtime-darwin-x64",
+  runtimePackPackage: "@zshannon/scriptc-runtime-darwin-x64",
 };
 
 export const LINUX_X64_GNU_TARGET: NativeTargetSpec = {
@@ -281,7 +281,7 @@ export const LINUX_X64_GNU_TARGET: NativeTargetSpec = {
   helperPackage: LINUX_X64_HELPER.packageName,
   helper: LINUX_X64_HELPER,
   llvmBackend: "X86",
-  runtimePackPackage: "@scriptc/runtime-linux-x64-gnu",
+  runtimePackPackage: "@zshannon/scriptc-runtime-linux-x64-gnu",
 };
 
 export const LINUX_ARM64_GNU_TARGET: NativeTargetSpec = {
@@ -310,7 +310,7 @@ export const LINUX_ARM64_GNU_TARGET: NativeTargetSpec = {
   helperPackage: LINUX_ARM64_HELPER.packageName,
   helper: LINUX_ARM64_HELPER,
   llvmBackend: "AArch64",
-  runtimePackPackage: "@scriptc/runtime-linux-arm64-gnu",
+  runtimePackPackage: "@zshannon/scriptc-runtime-linux-arm64-gnu",
 };
 
 export const WINDOWS_X64_MSVC_TARGET: NativeTargetSpec = {
@@ -341,7 +341,7 @@ export const WINDOWS_X64_MSVC_TARGET: NativeTargetSpec = {
   helperPackage: WINDOWS_X64_HELPER.packageName,
   helper: WINDOWS_X64_HELPER,
   llvmBackend: "X86",
-  runtimePackPackage: "@scriptc/runtime-win32-x64-msvc",
+  runtimePackPackage: "@zshannon/scriptc-runtime-win32-x64-msvc",
 };
 
 export const LINUX_X64_MUSL_TARGET: NativeTargetSpec = {
@@ -354,7 +354,7 @@ export const LINUX_X64_MUSL_TARGET: NativeTargetSpec = {
   defaultLinker: "zig",
   defaultLinkerArgs: ["cc"],
   linkerTargetTriple: "x86_64-linux-musl",
-  runtimePackPackage: "@scriptc/runtime-linux-x64-musl",
+  runtimePackPackage: "@zshannon/scriptc-runtime-linux-x64-musl",
   runtimeCompileDefines: ["_GNU_SOURCE", "SCR_MUSL"],
   helperPackage: LINUX_X64_MUSL_HELPER.packageName,
   helper: LINUX_X64_MUSL_HELPER,
@@ -370,7 +370,7 @@ export const LINUX_ARM64_MUSL_TARGET: NativeTargetSpec = {
   defaultLinker: "zig",
   defaultLinkerArgs: ["cc"],
   linkerTargetTriple: "aarch64-linux-musl",
-  runtimePackPackage: "@scriptc/runtime-linux-arm64-musl",
+  runtimePackPackage: "@zshannon/scriptc-runtime-linux-arm64-musl",
   runtimeCompileDefines: ["_GNU_SOURCE", "SCR_MUSL"],
   helperPackage: LINUX_ARM64_MUSL_HELPER.packageName,
   helper: LINUX_ARM64_MUSL_HELPER,
@@ -411,7 +411,7 @@ export const WASM32_WASI_TARGET: NativeTargetSpec = {
     "linux-arm64-musl": LINUX_ARM64_MUSL_HELPER,
     "win32-x64": WINDOWS_X64_HELPER,
   },
-  runtimePackPackage: "@scriptc/runtime-wasm32-wasi",
+  runtimePackPackage: "@zshannon/scriptc-runtime-wasm32-wasi",
 };
 
 export const IOS_ARM64_TARGET: NativeTargetSpec = {
@@ -421,7 +421,7 @@ export const IOS_ARM64_TARGET: NativeTargetSpec = {
   minimumOs: "15.0",
   linkerTargetTriple: "aarch64-ios.15.0",
   supports: { asm: true, obj: true, exe: false, library: true },
-  runtimePackPackage: "@scriptc/runtime-ios-arm64",
+  runtimePackPackage: "@zshannon/scriptc-runtime-ios-arm64",
 };
 
 export const IOS_SIMULATOR_ARM64_TARGET: NativeTargetSpec = {
@@ -429,7 +429,7 @@ export const IOS_SIMULATOR_ARM64_TARGET: NativeTargetSpec = {
   name: "ios-simulator-arm64",
   llvmTriple: "arm64-apple-ios15.0.0-simulator",
   linkerTargetTriple: "aarch64-ios.15.0-simulator",
-  runtimePackPackage: "@scriptc/runtime-ios-simulator-arm64",
+  runtimePackPackage: "@zshannon/scriptc-runtime-ios-simulator-arm64",
 };
 
 export const ANDROID_ARM64_TARGET: NativeTargetSpec = {
@@ -441,7 +441,7 @@ export const ANDROID_ARM64_TARGET: NativeTargetSpec = {
   defaultLinkerArgs: ["cc"],
   linkerTargetTriple: "aarch64-linux-android.26",
   supports: { asm: true, obj: true, exe: false, library: true },
-  runtimePackPackage: "@scriptc/runtime-android-arm64",
+  runtimePackPackage: "@zshannon/scriptc-runtime-android-arm64",
 };
 
 export const NATIVE_TARGETS = [

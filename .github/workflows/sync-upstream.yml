@@ -1,0 +1,30 @@
+name: Upstream release
+
+on:
+  schedule:
+    - cron: "23 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency: upstream-release
+
+jobs:
+  propose:
+    if: github.repository == 'zshannon/scriptc' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-noble-xs
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Propose the latest published upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/sync-upstream.mjs

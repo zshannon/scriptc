@@ -5,7 +5,7 @@ import { release as osRelease, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, test } from "vitest";
-import type { NativeLinkInfo } from "@scriptc/compiler";
+import type { NativeLinkInfo } from "@zshannon/scriptc-compiler";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -72,10 +72,10 @@ describe.runIf(supported)("macOS arm64 native link info", () => {
         minimum_os: "14.0",
       },
       program: { object, entry_symbol: "main" },
-      runtime_abi: { version: 22, marker: "scr_runtime_abi_v22" },
+      runtime_abi: { version: 1, marker: "scr_zshannon_runtime_abi_v1" },
       runtime_pack: {
         kind: "precompiled",
-        package: "@scriptc/runtime-darwin-arm64",
+        package: "@zshannon/scriptc-runtime-darwin-arm64",
         path_base: "runtime_pack.root",
       },
       link: { system_libraries: ["System"], frameworks: [] },
@@ -144,7 +144,7 @@ describe.runIf(supported)("macOS arm64 native link info", () => {
     await writeFile(
       stub,
       [
-        "void scr_runtime_abi_v1(void) {} /* previous ABI */",
+        "void scr_runtime_abi_v22(void) {} /* upstream ABI */",
         "void scr_console_log(void) {}",
         "void scr_init(void) {}",
         "void scr_lib_init(void) {}",
@@ -165,6 +165,6 @@ describe.runIf(supported)("macOS arm64 native link info", () => {
       () => null,
       (failure: { stderr?: string }) => failure,
     );
-    expect(error?.stderr).toContain("scr_runtime_abi_v22");
+    expect(error?.stderr).toContain("scr_zshannon_runtime_abi_v1");
   });
 });

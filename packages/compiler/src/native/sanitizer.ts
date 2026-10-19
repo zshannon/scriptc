@@ -75,7 +75,10 @@ export function buildSanitizedRuntime(
     name?: string;
     version?: string;
   };
-  if (identity.name !== "@scriptc/runtime" || identity.version !== toolchain.compilerVersion) {
+  if (
+    identity.name !== "@zshannon/scriptc-runtime" ||
+    identity.version !== toolchain.compilerVersion
+  ) {
     throw new NativeCodegenError(
       "SC3003",
       "runtime development source version does not match this compiler",

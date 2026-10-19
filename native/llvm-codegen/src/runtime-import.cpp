@@ -75,7 +75,7 @@ bool candidate(const Function &F, unsigned Limit) {
     return false;
   // The program calls the runtime ABI marker so that linking against a
   // mismatched runtime object fails; that reference must survive.
-  if (F.getName().starts_with("scr_runtime_abi_"))
+  if (F.getName().starts_with("scr_zshannon_runtime_abi_"))
     return false;
   if (F.hasLocalLinkage() && F.hasAddressTaken())
     return false;

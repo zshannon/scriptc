@@ -166,6 +166,7 @@ typedef enum {
   SCR_DYNH_DIR,            /* fs.Dir (scr_lib.c) */
   SCR_DYNH_CIPHER,         /* node:crypto Cipheriv (scr_cipher.c) */
   SCR_DYNH_DECIPHER,       /* node:crypto Decipheriv (scr_cipher.c) */
+  SCR_DYNH_FOREIGN, /* embedder-owned live foreign object */
   SCR_DYNH_COUNT,
 } ScrDynHandleTag;
 
@@ -1127,6 +1128,26 @@ typedef struct ScrDynHandleOps {
    * depth, as Node prints `{}`. */
   bool inspect_view_empty;
 } ScrDynHandleOps;
+
+/* Optional live-object interop surface for SCR_DYNH_FOREIGN only. The base
+ * layout stays unchanged for precompiled native handle owners. Values from
+ * get/keys/prototype are owned; stored values are borrowed.
+ * keys mode: 0 own enumerable, 1 all own string names, 2 for-in names.
+ * has mode: 0 inherited-or-own, 1 own, 2 own enumerable.
+ * Missing callbacks preserve generic-handle behavior; ownership-only
+ * embedders need only base.retain/base.release. */
+typedef struct ScrDynForeignOps {
+  ScrDynHandleOps base;
+  bool (*is_array)(void *h);
+  ScrDyn *(*keys)(void *h, unsigned mode);
+  bool (*has)(void *h, const ScrStr *key, unsigned mode);
+  ScrDyn *(*prototype)(void *h);
+  bool (*delete_property)(void *h, const ScrStr *key);
+  /* Optional: referent carries ScrCycHdr; plain embedders leave false. */
+  bool traced;
+} ScrDynForeignOps;
+const ScrDynForeignOps *scr_dyn_foreign_ops_of(const ScrDyn *value);
+
 ScrDyn *scr_dyn_native_handle_iterator(ScrDyn *source, unsigned selection);
 
 /* ── promises in the checked-dynamic tree (SCR_DYN_PROMISE) ────────────────────────────

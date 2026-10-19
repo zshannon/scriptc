@@ -13,7 +13,7 @@ import {
   serializeModule,
   validateModule,
   type AnalyzeResult,
-} from "@scriptc/compiler";
+} from "@zshannon/scriptc-compiler";
 import { everyStmtList } from "../../packages/compiler/src/ir/traverse.js";
 import { type IrModule } from "../../packages/compiler/src/ir/ir.js";
 import {

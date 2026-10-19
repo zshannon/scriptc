@@ -122,7 +122,7 @@ export function llvmEmitterCases(): LlvmEmitterCase[] {
     ...empty,
     name: "runtime ABI marker reference",
     request: llvmEmitterRequest({ runtimeAbiMarker: true }),
-    contains: ["call void @scr_runtime_abi_"],
+    contains: ["call void @scr_zshannon_runtime_abi_"],
     excludes: [],
   });
   const ffi = structuredClone(empty.module);

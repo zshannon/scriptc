@@ -261,6 +261,11 @@ export function emitCallExpr(
         libCb.params.forEach((cls, i) => {
           const arg = cbArgs[i]!;
           switch (cls) {
+            case "dyn":
+              // Borrowed native value; the host retains it when keeping it.
+              natTypes.push("ptr");
+              natArgs.push(`ptr ${arg.name}`);
+              break;
             case "f64":
               natTypes.push("double");
               natArgs.push(`double ${arg.name}`);
@@ -367,6 +372,8 @@ export function emitCallExpr(
         B.line(`call void @scr_library_callback_begin()`);
         B.line(`${raw} = ${call}`);
         B.line(`call void @scr_library_callback_end()`);
+        // A dynamic callback returns an owned (+1) runtime value.
+        if (libCb.returns === "dyn") return host.own({ name: raw, type: e.type });
         if (libCb.returns === "f64") return { name: raw, type: e.type };
         if (libCb.returns === "bool") {
           const value = B.tmp();

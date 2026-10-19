@@ -18,7 +18,7 @@ import { createServer, request } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 
 const portlessRoot =
   process.env["SCRIPTC_PORTLESS_ROOT"] ?? join(homedir(), "Developer/portless-scratch");

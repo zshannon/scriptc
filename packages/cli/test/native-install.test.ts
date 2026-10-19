@@ -26,7 +26,7 @@ function fixture() {
   );
   roots.push(root);
   const directory = join(root, "installation");
-  const packageName = "@scriptc/cli-darwin-arm64";
+  const packageName = "@zshannon/scriptc-cli-darwin-arm64";
   const platform = join(directory, "node_modules", packageName);
   const bin = join(platform, "dist/bin");
   mkdirSync(bin, { recursive: true });
@@ -68,10 +68,10 @@ function fixture() {
 }
 
 test("selects only supported native host packages, including Linux libc", () => {
-  expect(nativeCliPackage("darwin", "arm64", null)).toBe("@scriptc/cli-darwin-arm64");
-  expect(nativeCliPackage("win32", "x64", null)).toBe("@scriptc/cli-win32-x64-msvc");
-  expect(nativeCliPackage("linux", "x64", "glibc")).toBe("@scriptc/cli-linux-x64-gnu");
-  expect(nativeCliPackage("linux", "arm64", "musl")).toBe("@scriptc/cli-linux-arm64-musl");
+  expect(nativeCliPackage("darwin", "arm64", null)).toBe("@zshannon/scriptc-cli-darwin-arm64");
+  expect(nativeCliPackage("win32", "x64", null)).toBe("@zshannon/scriptc-cli-win32-x64-msvc");
+  expect(nativeCliPackage("linux", "x64", "glibc")).toBe("@zshannon/scriptc-cli-linux-x64-gnu");
+  expect(nativeCliPackage("linux", "arm64", "musl")).toBe("@zshannon/scriptc-cli-linux-arm64-musl");
   expect(() => nativeCliPackage("linux", "x64", null)).toThrow("identify");
   expect(() => nativeCliPackage("win32", "arm64", null)).toThrow("no native command");
 });
@@ -108,7 +108,7 @@ test("missing and mismatched packages fail without replacing an installed comman
     JSON.stringify({ name: f.packageName, version: "1.2.4" }),
   );
   expect(() => installNativeCli(f.directory, f.packageName)).toThrow("found 1.2.4");
-  expect(() => installNativeCli(f.directory, "@scriptc/cli-missing")).toThrow(
+  expect(() => installNativeCli(f.directory, "@zshannon/scriptc-cli-missing")).toThrow(
     "optional dependencies",
   );
   expect(readFileSync(command, "utf8")).toBe("native compiler payload");
