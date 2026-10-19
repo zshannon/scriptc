@@ -1,7 +1,7 @@
 {
   "name": "@zshannon/scriptc-compiler",
   "version": "0.3.6",
-  "description": "The scriptc compiler — TypeScript/JavaScript frontend, typed IR, LLVM backend",
+  "description": "The scriptc compiler \u2014 TypeScript/JavaScript frontend, typed IR, LLVM backend",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",
   "repository": {
@@ -44,22 +44,8 @@
   },
   "optionalDependencies": {
     "@zshannon/scriptc-llvm-darwin-arm64": "workspace:*",
-    "@zshannon/scriptc-llvm-darwin-x64": "workspace:*",
-    "@zshannon/scriptc-llvm-linux-x64-gnu": "workspace:*",
-    "@zshannon/scriptc-llvm-linux-arm64-gnu": "workspace:*",
-    "@zshannon/scriptc-llvm-linux-x64-musl": "workspace:*",
-    "@zshannon/scriptc-llvm-linux-arm64-musl": "workspace:*",
-    "@zshannon/scriptc-llvm-win32-x64-msvc": "workspace:*",
     "@zshannon/scriptc-runtime-darwin-arm64": "workspace:*",
-    "@zshannon/scriptc-runtime-darwin-x64": "workspace:*",
-    "@zshannon/scriptc-runtime-linux-x64-gnu": "workspace:*",
-    "@zshannon/scriptc-runtime-linux-arm64-gnu": "workspace:*",
-    "@zshannon/scriptc-runtime-linux-x64-musl": "workspace:*",
-    "@zshannon/scriptc-runtime-linux-arm64-musl": "workspace:*",
-    "@zshannon/scriptc-runtime-win32-x64-msvc": "workspace:*",
-    "@zshannon/scriptc-runtime-wasm32-wasi": "workspace:*",
     "@zshannon/scriptc-runtime-ios-arm64": "workspace:*",
-    "@zshannon/scriptc-runtime-ios-simulator-arm64": "workspace:*",
-    "@zshannon/scriptc-runtime-android-arm64": "workspace:*"
+    "@zshannon/scriptc-runtime-ios-simulator-arm64": "workspace:*"
   }
 }

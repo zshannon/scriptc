@@ -63,9 +63,7 @@ jobs:
           const api = (path) => JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }));
           const repo = process.env.GITHUB_REPOSITORY;
           const expected = [
-            'darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64',
-            'linux-x64-musl', 'linux-arm64-musl', 'windows-x64', 'wasm32-wasi',
-            'runtime-ios-arm64', 'runtime-ios-simulator-arm64', 'runtime-android-arm64',
+            'darwin-arm64', 'runtime-ios-arm64', 'runtime-ios-simulator-arm64',
           ].map((platform) => `native-${platform}`);
           const runs = api(`repos/${repo}/actions/workflows/fork-ci.yml/runs?branch=main&status=completed&per_page=100`).workflow_runs;
           let artifactRun;
@@ -97,59 +95,11 @@ jobs:
           NODE
 
   build-native-packages:
-    name: Build native package (${{ matrix.platform }})
+    name: Build Apple Silicon native packages
     needs: check-release
     if: needs.check-release.outputs.should_release == 'true' && needs.check-release.outputs.reuse_artifacts != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: darwin-arm64
-            runner: macos-15
-            helper: llvm-darwin-arm64
-            runtime: runtime-darwin-arm64
-          - platform: darwin-x64
-            runner: macos-15-intel
-            helper: llvm-darwin-x64
-            runtime: runtime-darwin-x64
-          - platform: linux-x64
-            runner: ubuntu-24.04
-            helper: llvm-linux-x64-gnu
-            runtime: runtime-linux-x64-gnu
-            llvm_asset: LLVM-22.1.8-Linux-X64
-            use_zig: true
-          - platform: linux-arm64
-            runner: ubuntu-24.04-arm
-            helper: llvm-linux-arm64-gnu
-            runtime: runtime-linux-arm64-gnu
-            llvm_asset: LLVM-22.1.8-Linux-ARM64
-            use_zig: true
-          - platform: windows-x64
-            runner: windows-2022
-            helper: llvm-win32-x64-msvc
-            runtime: runtime-win32-x64-msvc
-            use_zig: true
-          - platform: linux-x64-musl
-            runner: ubuntu-24.04
-            helper: llvm-linux-x64-musl
-            runtime: runtime-linux-x64-musl
-            llvm_asset: LLVM-22.1.8-Linux-X64
-            use_zig: true
-          - platform: linux-arm64-musl
-            runner: ubuntu-24.04-arm
-            helper: llvm-linux-arm64-musl
-            runtime: runtime-linux-arm64-musl
-            llvm_asset: LLVM-22.1.8-Linux-ARM64
-            use_zig: true
-          - platform: wasm32-wasi
-            runner: ubuntu-24.04
-            helper: llvm-linux-x64-gnu
-            runtime: runtime-wasm32-wasi
-            llvm_asset: LLVM-22.1.8-Linux-X64
-            use_zig: true
-    runs-on: ${{ matrix.runner }}
-    # The Intel macOS build took 24 minutes for 0.3.2 and passed 30 for 0.3.3.
-    timeout-minutes: 45
+    runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -159,78 +109,28 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-      - name: Install toolchain (macOS)
-        if: startsWith(matrix.platform, 'darwin')
+      - name: Install toolchain
         run: |
-          brew install llvm@22
+          brew install cmake ninja llvm@22
           llvm_prefix=$(brew --prefix llvm@22)
           echo "$llvm_prefix/bin" >> "$GITHUB_PATH"
           echo "LLVM_DIR=$llvm_prefix/lib/cmake/llvm" >> "$GITHUB_ENV"
-      - name: Install pinned LLVM development distribution (Linux)
-        if: startsWith(matrix.platform, 'linux') || matrix.platform == 'wasm32-wasi'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes g++ zlib1g-dev libzstd-dev
-          curl -fL --retry 3 -o "$RUNNER_TEMP/llvm.tar.xz" "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/${{ matrix.llvm_asset }}.tar.xz"
-          tar -xJf "$RUNNER_TEMP/llvm.tar.xz" -C "$RUNNER_TEMP"
-          mv "$RUNNER_TEMP/${{ matrix.llvm_asset }}" "$RUNNER_TEMP/llvm-22.1.8"
-          echo "LLVM_DIR=$RUNNER_TEMP/llvm-22.1.8/lib/cmake/llvm" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/llvm-22.1.8/bin" >> "$GITHUB_PATH"
-      - uses: vercel-labs/setup-zig@v1
-        if: matrix.use_zig == true
-        with:
-          version: 0.16.0
-      - name: Install pinned LLVM development distribution (Windows)
-        if: matrix.platform == 'windows-x64'
-        shell: pwsh
-        run: |
-          # The complete archive supplies LLVM's exported CMake targets and
-          # static libraries. windows-2022 includes CMake, Ninja, VS 2022,
-          # and 7-Zip; unlike tar.exe, 7-Zip expands this archive quickly.
-          $archive = "$env:RUNNER_TEMP\clang+llvm-22.1.8-x86_64-pc-windows-msvc.tar.xz"
-          $llvm = "$env:RUNNER_TEMP\llvm-22.1.8"
-          $expanded = "$env:RUNNER_TEMP\llvm-expanded"
-          $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
-          if (-not (Test-Path $sevenZip)) {
-            choco install 7zip --no-progress -y
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          if (-not (Test-Path $sevenZip)) { throw "7-Zip is unavailable" }
-          curl.exe -fL --retry 3 -o $archive https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/clang%2Bllvm-22.1.8-x86_64-pc-windows-msvc.tar.xz
-          & $sevenZip x -y "-o$expanded" $archive
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $sevenZip x -y "-o$expanded" "$expanded\clang+llvm-22.1.8-x86_64-pc-windows-msvc.tar"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Move-Item "$expanded\clang+llvm-22.1.8-x86_64-pc-windows-msvc" $llvm
-          echo "LLVM_DIR=$llvm\lib\cmake\llvm" >> $env:GITHUB_ENV
-          echo "$llvm\bin" >> $env:GITHUB_PATH
       - run: pnpm install --frozen-lockfile
-      - name: Build native packages (POSIX)
-        if: matrix.platform != 'windows-x64'
+      - name: Build native packages
         run: |
-          pnpm --filter @zshannon/scriptc-${{ matrix.helper }} build:native
-          if [ "${{ matrix.use_zig }}" = true ]; then
-            CC=zig AR=zig pnpm --filter @zshannon/scriptc-${{ matrix.runtime }} build:native
-          else
-            CC=clang AR=llvm-ar pnpm --filter @zshannon/scriptc-${{ matrix.runtime }} build:native
-          fi
-      - name: Build native packages (Windows)
-        if: matrix.platform == 'windows-x64'
-        run: |
-          pnpm --filter @zshannon/scriptc-${{ matrix.helper }} build:native
-          pnpm --filter @zshannon/scriptc-${{ matrix.runtime }} build:native
-      - name: Verify packed Darwin helper on its build host
-        if: matrix.platform == 'darwin-arm64'
+          pnpm --filter @zshannon/scriptc-llvm-darwin-arm64 build:native
+          CC=clang AR=llvm-ar pnpm --filter @zshannon/scriptc-runtime-darwin-arm64 build:native
+      - name: Verify packed helper
         run: |
           TARBALL=$(pnpm --dir packages/llvm-darwin-arm64 pack --pack-destination "$RUNNER_TEMP" --silent)
           node scripts/verify-llvm-package.mjs "$RUNNER_TEMP/$(basename "$TARBALL")"
       - name: Upload native packages
         uses: actions/upload-artifact@v4
         with:
-          name: native-${{ matrix.platform }}
+          name: native-darwin-arm64
           path: |
-            packages/${{ matrix.helper }}
-            packages/${{ matrix.runtime }}
+            packages/llvm-darwin-arm64
+            packages/runtime-darwin-arm64
           retention-days: 7
 
   build-mobile-runtime-packs:
@@ -245,8 +145,6 @@ jobs:
             runner: macos-15
           - runtime: runtime-ios-simulator-arm64
             runner: macos-15
-          - runtime: runtime-android-arm64
-            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -341,7 +239,7 @@ jobs:
       - name: Check version sync
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
-          for pkg in packages/runtime packages/runtime-* packages/llvm-* packages/compiler; do
+          for pkg in packages/runtime packages/runtime-darwin-arm64 packages/runtime-ios-arm64 packages/runtime-ios-simulator-arm64 packages/llvm-darwin-arm64 packages/compiler; do
             if [ "$(node -p "require('./$pkg/package.json').private === true")" = "true" ]; then
               continue
             fi
@@ -373,7 +271,7 @@ jobs:
         if: steps.packages.outputs.count == '0'
         run: |
           mkdir -p "$RUNNER_TEMP/release-assets"
-          for pkg in packages/runtime packages/runtime-* packages/llvm-* packages/compiler; do
+          for pkg in packages/runtime packages/runtime-darwin-arm64 packages/runtime-ios-arm64 packages/runtime-ios-simulator-arm64 packages/llvm-darwin-arm64 packages/compiler; do
             if [ "$(node -p "require('./$pkg/package.json').private === true")" = true ]; then continue; fi
             (cd "$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/release-assets")
           done
@@ -452,22 +350,8 @@ jobs:
           publish_dir packages/runtime
           publish_dir packages/runtime-darwin-arm64
           publish_dir packages/llvm-darwin-arm64
-          publish_dir packages/runtime-darwin-x64
-          publish_dir packages/llvm-darwin-x64
-          publish_dir packages/runtime-linux-x64-gnu
-          publish_dir packages/llvm-linux-x64-gnu
-          publish_dir packages/runtime-linux-arm64-gnu
-          publish_dir packages/llvm-linux-arm64-gnu
-          publish_dir packages/runtime-linux-x64-musl
-          publish_dir packages/llvm-linux-x64-musl
-          publish_dir packages/runtime-linux-arm64-musl
-          publish_dir packages/llvm-linux-arm64-musl
           publish_dir packages/runtime-ios-arm64
           publish_dir packages/runtime-ios-simulator-arm64
-          publish_dir packages/runtime-android-arm64
-          publish_dir packages/runtime-wasm32-wasi
-          publish_dir packages/runtime-win32-x64-msvc
-          publish_dir packages/llvm-win32-x64-msvc
           publish_dir packages/compiler
           echo "All package uploads accepted; npm registry propagation may continue after this job." >> "$GITHUB_STEP_SUMMARY"
 

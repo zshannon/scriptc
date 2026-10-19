@@ -1,6 +1,6 @@
 # Releasing the fork
 
-This fork publishes the JavaScript API as `@zshannon/scriptc-compiler`, together with `@zshannon/scriptc-runtime` and matching `@zshannon/scriptc-llvm-*` / `@zshannon/scriptc-runtime-*` packages. It uses ordinary versions such as `0.3.6` and tags such as `v0.3.6`. Compiler, helper and runtime versions must match exactly. The unchanged `@scriptc/types`, `@scriptc/threads` and `@scriptc/experimental` language packages remain upstream-owned.
+This fork publishes the JavaScript API as `@zshannon/scriptc-compiler`, together with `@zshannon/scriptc-runtime`, the `@zshannon/scriptc-llvm-darwin-arm64` helper, and matching runtime packs for Apple Silicon macOS, iOS devices, and the iOS simulator. It uses ordinary versions such as `0.3.6` and tags such as `v0.3.6`. Compiler, helper and runtime versions must match exactly. The unchanged `@scriptc/types`, `@scriptc/threads` and `@scriptc/experimental` language packages remain upstream-owned.
 
 The JavaScript API is the distribution entry point. Native CLI self-hosting is not required for fork releases. The existing builders produce the platform artifacts; `pnpm pack` produces the installable bundles. The GitHub release carries those same tarballs, `SHA256SUMS` and `surface-manifest.json`.
 
@@ -23,34 +23,15 @@ Upload receipts include the candidate tarball SHA-512. Retries accept a registry
 
 ## First npm publication
 
-npm trusted publishers require an existing package and an account with two-factor authentication. The first release therefore needs one manual publication of the real release tarballs; do not create placeholder versions. This workflow publishes 20 packages: the compiler, runtime source, seven LLVM helpers, and eleven platform runtime packs.
+The initial local release is `0.3.5`; merging the PR at `0.3.6` produces the next release through GitHub Actions. Both releases contain six packages: the compiler, runtime source, Apple Silicon macOS LLVM helper, and runtime packs for Apple Silicon macOS, iOS devices, and the iOS simulator. The release workflow does not build or publish other platforms.
 
-1. Merge the validated PR. Wait for `Fork CI` on `main` to build and save the `release-packages` artifact. Until npm is configured, the subsequent `Publish to npm` step can fail authentication; the complete artifact remains downloadable.
-2. Download that run's `release-packages` artifact into a fresh local `release-packages` directory. Use Node 24 and npm 11.15 or newer, signed in as the package owner. These commands publish publicly; complete npm's browser/2FA prompts. Publish the dependencies first and the compiler last:
+Build the initial packages locally at `0.3.5`, pack them with `pnpm pack`, verify a clean consumer can compile all three targets, and publish the five dependencies before the compiler. Restore the checked-in manifests and generated surface manifest to `0.3.6` afterward so the merge triggers a distinct release. Keep the actual `0.3.5` tarballs and their checksums for the release record.
 
-```bash
-(
-  for tarball in release-packages/*.tgz; do
-    case "$tarball" in *scriptc-compiler-*) continue ;; esac
-    npm publish "$tarball" --access public || exit 1
-  done
-  npm publish release-packages/zshannon-scriptc-compiler-0.3.6.tgz --access public
-)
-```
+Configure npm trusted publishing for each of the six packages with GitHub Actions, owner `zshannon`, repository `scriptc`, calling workflow `fork-ci.yml`, environment `Release`, and direct publish permission. Use `npm trust github <package> --repo zshannon/scriptc --file fork-ci.yml --env Release --allow-publish --yes` from the authenticated maintainer account and complete npm's browser/2FA confirmation. No npm token or additional GitHub secret is needed.
 
-3. Configure the trusted publisher for every package in that same artifact. The first request requires npm's account confirmation. Its five-minute confirmation window can cover the loop:
+A new trusted-publisher configuration must complete its first successful automated publish within two days of configuration. This is an expiry deadline, not a requirement to wait or publish on separate days. Merge `0.3.6` within that window. If the configuration expires before use, delete and recreate it before publishing. See [npm trust prerequisites](https://docs.npmjs.com/cli/v11/commands/npm-trust/) and [trusted-publisher expiry](https://docs.npmjs.com/trusted-publishers/#trusted-publisher-configuration-expiry).
 
-```bash
-for tarball in release-packages/*.tgz; do
-  package_name=$(tar -xOf "$tarball" package/package.json | node -pe 'JSON.parse(require("node:fs").readFileSync(0, "utf8")).name')
-  npm trust github "$package_name" --repo zshannon/scriptc --file fork-ci.yml --env Release --allow-publish --yes || break
-  sleep 2
-done
-```
-
-4. Re-run the failed jobs on that same `Fork CI` run. It restores the saved tarballs instead of repacking. It accepts already-published packages only when their integrity matches the saved tarballs, then completes the GitHub release. Future new manifest versions publish automatically after the main checks pass.
-
-The equivalent npm website settings are GitHub Actions, owner `zshannon`, repository `scriptc`, workflow `fork-ci.yml`, environment `Release`, and permission to publish directly. No npm token or additional GitHub secret is needed. See [npm trust prerequisites and bulk configuration](https://docs.npmjs.com/cli/v11/commands/npm-trust/) and [trusted publishing with reusable workflows](https://docs.npmjs.com/trusted-publishers/).
+If a release is interrupted after any upload, re-run failed jobs on that same `Fork CI` run. It restores the saved tarballs instead of repacking and accepts already-published packages only when their integrity matches. Future new manifest versions publish automatically after main checks pass.
 
 ## Weekly upstream updates
 
