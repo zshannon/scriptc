@@ -18,6 +18,9 @@ struct Slot { Finalizers *queue; ScrDyn *box; Slot *next; };
 @property (nonatomic) JSManagedValue *value;
 @property (nonatomic) void *native;
 @property (nonatomic) const void *identity;
+/* The native slot table owns all entries. Unlink before removing its owner. */
+@property (nonatomic, unsafe_unretained) ScrJSCEntry *previousAlias;
+@property (nonatomic, unsafe_unretained) ScrJSCEntry *nextAlias;
 @property (nonatomic) Slot *slot;
 @property (nonatomic) JSValueRef key;
 @property (nonatomic) JSValueRef facadeKey;
@@ -81,7 +84,11 @@ static bool drain(ScrJSC *state) {
     if (g.byJS[key(entry.key)] == entry) [g.byJS removeObjectForKey:key(entry.key)];
     if (entry.facadeKey && g.byJS[key(entry.facadeKey)] == entry)
       [g.byJS removeObjectForKey:key(entry.facadeKey)];
-    if (g.byIdentity[key(entry.identity)] == entry) [g.byIdentity removeObjectForKey:key(entry.identity)];
+    if (entry.previousAlias) entry.previousAlias.nextAlias = entry.nextAlias;
+    else if (entry.nextAlias) g.byIdentity[key(entry.identity)] = entry.nextAlias;
+    else [g.byIdentity removeObjectForKey:key(entry.identity)];
+    entry.nextAlias.previousAlias = entry.previousAlias;
+    entry.previousAlias = nil; entry.nextAlias = nil;
     [g.native removeObjectForKey:key(slot)];
     state->operations.release(state->runtime_context, slot->box);
     free(slot); queue_release(queue);
@@ -154,8 +161,9 @@ void scr_jsc_attach_native(ScrJSC *state, const void *identity, ScrDyn *native, 
     JSObjectSetPrivate(wrapper, slot);
     entry.value = [JSManagedValue managedValueWithValue:[JSValue valueWithJSValueRef:wrapper inContext:g.context]];
     scr_jsc_keep(state, wrapper);
+    entry.nextAlias = g.byIdentity[key(identity)];
+    entry.nextAlias.previousAlias = entry;
     g.native[key(slot)] = entry; g.byJS[key(wrapper)] = entry; g.byIdentity[key(identity)] = entry;
-
   }
 }
 void scr_jsc_set_facade(ScrJSC *state, JSObjectRef wrapper, JSValueRef facade) {
@@ -168,16 +176,11 @@ void scr_jsc_set_facade(ScrJSC *state, JSObjectRef wrapper, JSValueRef facade) {
 }
 JSValueRef scr_jsc_find_native(ScrJSC *state, const void *identity) {
   ScrJSCOwners *g = graph(state); drain(state);
-  ScrJSCEntry *cached = g.byIdentity[key(identity)];
-  JSValueRef cachedValue = cached ? entry_value(state, cached) : NULL;
-  if (cachedValue) return cachedValue;
   // A newer alias or its facade can die while an older wrapper remains live.
-  for (ScrJSCEntry *entry in g.native.objectEnumerator) {
-    if (entry.identity != identity) continue;
+  // Only that identity's aliases can recover it; new identities do no scan.
+  for (ScrJSCEntry *entry = g.byIdentity[key(identity)]; entry; entry = entry.nextAlias) {
     JSValueRef value = entry_value(state, entry);
-    if (!value) continue;
-    g.byIdentity[key(identity)] = entry;
-    return value;
+    if (value) return value;
   }
   return NULL;
 }

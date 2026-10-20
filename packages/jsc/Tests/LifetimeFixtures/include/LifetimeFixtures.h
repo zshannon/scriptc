@@ -18,3 +18,6 @@ bool lifetime_contraction_foreign_outgoing_cycle(void);
 bool lifetime_persistent_duplicate_removal(void);
 bool lifetime_persistent_expansion(void);
 bool lifetime_persistent_replacement_finalizer(void);
+bool lifetime_identity_miss_scaling(void);
+bool lifetime_expired_facade_alias(void);
+bool lifetime_middle_alias(void);

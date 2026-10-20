@@ -1,6 +1,6 @@
 {
   "name": "@zshannon/scriptc-cli-linux-arm64-musl",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Native scriptc compiler for linux-arm64-musl",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",

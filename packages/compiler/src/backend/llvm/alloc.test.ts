@@ -29,7 +29,7 @@ function expectSingleDefinitions(lines: string[]): void {
 }
 
 describe("emitted object allocation", () => {
-  test("inlines only where the runtime allocator state is a 64-bit process global", () => {
+  test("inlines only where the runtime supports a 64-bit small-object allocator", () => {
     expect(inlineAllocSupported({ pointerBits: 64, targetTriple: "" })).toBe(true);
     expect(inlineAllocSupported({ targetTriple: "x86_64-unknown-linux-gnu" })).toBe(true);
     expect(inlineAllocSupported({ targetTriple: "arm64-apple-macosx14.0.0" })).toBe(true);
@@ -38,7 +38,7 @@ describe("emitted object allocation", () => {
     expect(inlineAllocSupported({ targetTriple: "wasm32-unknown-wasip1" })).toBe(false);
     expect(inlineAllocSupported({ targetTriple: "x86_64-pc-windows-msvc" })).toBe(false);
     expect(inlineAllocSupported({ targetTriple: "x86_64-w64-windows-gnu" })).toBe(false);
-    expect(inlineAllocSupported({ threadInstances: true })).toBe(false);
+    expect(inlineAllocSupported({ threadInstances: true })).toBe(true);
   });
 
   test("keeps the out-of-line calls when inlining is off", () => {

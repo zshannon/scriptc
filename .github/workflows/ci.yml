@@ -1,14 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-  # Nightly full macOS sweep, including on days without a push to main.
-  schedule:
-    - cron: "17 7 * * *"
-  # A manual run; macos_full runs the complete suite on macOS as the nightly sweep does (for example on a
-  # release candidate commit).
+  # The fork's automatic checks live in fork-ci.yml. Retain the full upstream
+  # matrix for explicit diagnostic runs only.
   workflow_dispatch:
     inputs:
       macos_full:

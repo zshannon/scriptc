@@ -227,7 +227,7 @@ static void check_heap_huge_pages(void) {
 #endif
 #endif
 
-#if defined(SCR_WORKERS) && SCR_SMALL_ALLOC
+#if (defined(SCR_WORKERS) || defined(SCR_THREAD_INSTANCES)) && SCR_SMALL_ALLOC
 #include <pthread.h>
 
 /* Script threads own disjoint arenas; blocks freed by another thread return
@@ -238,6 +238,23 @@ static void *handoff[HANDOFF];
 static void *handed[HANDOFF]; /* the addresses, kept after the frees */
 static uintptr_t worker_base;
 
+#ifdef SCR_THREAD_INSTANCES
+static pthread_key_t late_free_key;
+static unsigned late_frees;
+
+/* Darwin runs this ordinary key after the allocator parks its arena and
+ * native TLS storage is freed. Other platforms permit either key order; a
+ * destructor must safely release the block in both cases. */
+static void late_free(void *p) {
+#ifdef __APPLE__
+  assert(scr_sa.base == 0);
+#endif
+  verify(p, 40, 123);
+  scr_mem_free(p);
+  late_frees++;
+}
+#endif
+
 static void *alloc_and_hand_off(void *arg) {
   (void)arg;
   for (unsigned i = 0; i < HANDOFF; i++) {
@@ -247,7 +264,14 @@ static void *alloc_and_hand_off(void *arg) {
     fill(handoff[i], 48, (unsigned char)i);
   }
   worker_base = scr_sa.base;
+#ifdef SCR_THREAD_INSTANCES
+  void *late = scr_mem_alloc(40);
+  fill(late, 40, 123);
+  assert(pthread_setspecific(late_free_key, late) == 0);
+#endif
+#ifdef SCR_WORKERS
   scr_sa_thread_park();
+#endif
   return NULL;
 }
 
@@ -257,33 +281,47 @@ static void *reclaim_arena(void *arg) {
    * with the main thread's remote frees drained into its free lists. */
   void *p = scr_mem_alloc(48);
   assert(scr_sa.base == worker_base);
+  assert(p != handoff[0]); /* this block outlived its allocating thread */
+  verify(handoff[0], 48, 0);
   bool recycled = false;
   for (unsigned i = 0; i < HANDOFF; i++) recycled |= p == handed[i];
   assert(recycled);
   scr_mem_free(p);
+#ifdef SCR_WORKERS
   scr_sa_thread_park();
+#endif
   return NULL;
 }
 
 static void check_threads(void) {
   void *mine = scr_mem_alloc(48);
   assert(owned(mine));
-  pthread_t t;
-  assert(pthread_create(&t, NULL, alloc_and_hand_off, NULL) == 0);
-  assert(pthread_join(t, NULL) == 0);
-  assert(worker_base != scr_sa.base);
-  for (unsigned i = 0; i < HANDOFF; i++) {
-    assert(!owned(handoff[i]));
-    verify(handoff[i], 48, (unsigned char)i);
-    if (i == 0) {
-      handoff[0] = scr_mem_realloc(handoff[0], 600); /* moves to the system */
-      verify(handoff[0], 48, 0);
-      free(handoff[0]);
-      handoff[0] = NULL;
-    } else scr_mem_free(handoff[i]); /* remote free */
+#ifdef SCR_THREAD_INSTANCES
+  assert(pthread_key_create(&late_free_key, late_free) == 0);
+#endif
+  /* More exits than the arena limit catches leaked ownership even when the
+   * system allocator would otherwise hide exhaustion after 32 threads. */
+  for (unsigned round = 0; round < 64; round++) {
+    pthread_t t;
+    assert(pthread_create(&t, NULL, alloc_and_hand_off, NULL) == 0);
+    assert(pthread_join(t, NULL) == 0);
+    assert(worker_base != scr_sa.base);
+    for (unsigned i = 1; i < HANDOFF; i++) {
+      assert(!owned(handoff[i]));
+      verify(handoff[i], 48, (unsigned char)i);
+      scr_mem_free(handoff[i]); /* remote free */
+    }
+    assert(pthread_create(&t, NULL, reclaim_arena, NULL) == 0);
+    assert(pthread_join(t, NULL) == 0);
+    handoff[0] = scr_mem_realloc(handoff[0], 600); /* moves to the system */
+    verify(handoff[0], 48, 0);
+    free(handoff[0]);
+    handoff[0] = NULL;
   }
-  assert(pthread_create(&t, NULL, reclaim_arena, NULL) == 0);
-  assert(pthread_join(t, NULL) == 0);
+#ifdef SCR_THREAD_INSTANCES
+  assert(late_frees == 64);
+  assert(pthread_key_delete(late_free_key) == 0);
+#endif
   scr_mem_free(mine);
 }
 #endif
@@ -385,12 +423,16 @@ int main(void) {
 #if SCR_SMALL_ALLOC && defined(__linux__) && defined(__GLIBC__)
   check_heap_huge_pages();
 #endif
-#if defined(SCR_WORKERS) && SCR_SMALL_ALLOC
+#if (defined(SCR_WORKERS) || defined(SCR_THREAD_INSTANCES)) && SCR_SMALL_ALLOC
   check_threads();
+#ifdef SCR_WORKERS
 #ifdef __linux__
   check_trim();
 #endif
   printf("allocator checks passed: size-class workers\n");
+#else
+  printf("allocator checks passed: size-class libraries\n");
+#endif
 #else
   printf("allocator checks passed: %s\n", SCR_SMALL_ALLOC ? "size-class" : "system");
 #endif

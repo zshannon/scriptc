@@ -17,6 +17,15 @@ test.each([
   ["system", ["-fsanitize=address,undefined"]],
   ["size-class workers", ["-fsanitize=undefined", "-DSCR_WORKERS", "-pthread"]],
   ["size-class workers", ["-fsanitize=thread", "-DSCR_WORKERS", "-pthread"]],
+  [
+    "size-class libraries",
+    ["-fsanitize=undefined", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
+  ],
+  [
+    "size-class libraries",
+    ["-fsanitize=thread", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
+  ],
+  ["system", ["-fsanitize=address,undefined", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"]],
 ])("small-object allocator contracts hold (%s, %j)", async (mode, sanitize) => {
   const scratch = await mkdtemp(join(tmpdir(), "scriptc-alloc-"));
   try {

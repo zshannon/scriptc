@@ -127,7 +127,7 @@
  */
 #include "scr_runtime.h"
 
-#ifndef SCR_WORKERS /* worker executables keep it in scr_thread_hot */
+#if !SCR_ALLOC_THREADS /* threaded runtimes keep it in scr_thread_hot */
 SCR_TL void (*scr_weak_dispose_hook)(void *) = NULL;
 #endif
 
@@ -279,7 +279,7 @@ void scr_rc_destroy(void *obj, void (*destroy)(void *)) {
 /* Live cycle-headered objects and the running count of OLD objects freed.
  * The inline allocation/free paths (scr_runtime.h, llvm/alloc.ts) maintain
  * both counters so full passes can measure old-generation reclamation. */
-#ifndef SCR_WORKERS /* worker executables keep them in scr_thread_hot */
+#if !SCR_ALLOC_THREADS /* threaded runtimes keep them in scr_thread_hot */
 SCR_TL size_t scr_cyc_live = 0;
 SCR_TL size_t scr_cyc_old_freed = 0;
 #endif
