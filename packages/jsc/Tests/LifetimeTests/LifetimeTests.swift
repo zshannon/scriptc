@@ -8,6 +8,9 @@ struct LifetimeTests {
     @Test func unreachableNativeCycleIsCollected() { #expect(lifetime_native_cycle()) }
     @Test func replacingAnEdgeReleasesOldValueAndPreservesIdentity() { #expect(lifetime_replace_edge()) }
     @Test func olderWrapperKeepsIdentityAfterNewerAliasDies() { #expect(lifetime_older_alias()) }
+    @Test func identityMissDoesNotScaleWithUnrelatedWrappers() { #expect(lifetime_identity_miss_scaling()) }
+    @Test func expiredFacadeFallsBackToOlderAlias() { #expect(lifetime_expired_facade_alias()) }
+    @Test func removingMiddleAliasPreservesItsNeighbors() { #expect(lifetime_middle_alias()) }
     @Test func survivingAliasKeepsValueAlive() { #expect(lifetime_aliases()) }
     @Test func nativeTurnKeepsForeignChildAfterJavaScriptOwnerIsRemoved() { #expect(lifetime_native_turn_root()) }
     @Test func repeatedExplicitCycleCleanupDoesNotGrowCaches() { #expect(lifetime_churn()) }

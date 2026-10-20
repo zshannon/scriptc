@@ -22,9 +22,8 @@
  * through scr_rt_free.
  *
  * Inlining is limited to the targets where the allocator can be live: 64-bit,
- * not WASI, not Windows, and not thread-instanced libraries (whose
- * allocator is compiled out). Worker programs inline too, against the
- * thread-local allocator state, live count and dispose hook of the calling
+ * not WASI and not Windows. Workers and thread-instanced libraries inline
+ * against the thread-local allocator state, live count and dispose hook of the calling
  * script thread (each thread owns an arena; see scr_runtime.h). Elsewhere
  * the out-of-line calls remain. */
 
@@ -39,12 +38,12 @@ export interface AllocHost {
    * objectAudit: only --sanitize builds count them). Absent means emit. */
   readonly objectAudit?: boolean;
   /** The allocator state, live count and dispose hook are thread-local
-   * (worker executables). */
+   * (workers and thread-instanced libraries). */
   readonly threadLocalAlloc?: boolean;
 }
 
-/** The state globals of the inline allocation paths and, in worker
- * executables, their byte offsets inside the runtime's one thread-local
+/** The state globals of the inline allocation paths and, in threaded
+ * runtimes, their byte offsets inside the runtime's one thread-local
  * ScrThreadHot block (layout asserted in scr_runtime.h). */
 const STATE_GLOBALS: readonly [global: string, offset: number][] = [
   ["@scr_sa", 0],
@@ -54,7 +53,7 @@ const STATE_GLOBALS: readonly [global: string, offset: number][] = [
 ];
 const THREAD_HOT_TYPE = "{ { i64, i64, i32, [40 x ptr], [40 x ptr], [40 x ptr] }, i64, i64, ptr }";
 
-/** Worker executables: address the thread's ScrThreadHot block once through
+/** Threaded runtimes: address the thread's ScrThreadHot block once through
  * llvm.threadlocal.address (which LLVM can share across a function; on
  * Darwin each distinct thread-local costs a call) and rewrite the lines to
  * address the state globals at their offsets in it. */
@@ -98,7 +97,7 @@ export function inlineAllocSupported(options: {
   targetTriple?: string | undefined;
   threadInstances?: boolean | undefined;
 }): boolean {
-  if (options.pointerBits === 32 || options.wasi === true || options.threadInstances === true) {
+  if (options.pointerBits === 32 || options.wasi === true) {
     return false;
   }
   // An omitted triple means the host ABI. That stays sound even on a host

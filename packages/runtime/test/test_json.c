@@ -630,6 +630,128 @@ static void test_foreign_optional_callbacks(void) {
   scr_dyn_handle_install(SCR_DYNH_FOREIGN, NULL);
 }
 
+/* Object spread and assign must read foreign keys one at a time: a target
+ * setter can change a later source descriptor/value, and failures stop the walk. */
+static ScrDyn *foreign_copy_source;
+static unsigned foreign_copy_failure, foreign_copy_gets, foreign_copy_sets;
+static ScrDyn *foreign_copy_keys(void *value, unsigned mode) {
+  if (foreign_copy_failure == 1) {
+    scr_throw_error_msg(SCR_ERR_RANGE, "keys failed", 11);
+    return NULL;
+  }
+  return foreign_keys(value, mode);
+}
+static bool foreign_copy_has(void *value, const ScrStr *key, unsigned mode) {
+  check(mode == 2, "foreign copying checks own enumerability");
+  if (foreign_copy_failure == 2) {
+    scr_throw_error_msg(SCR_ERR_RANGE, "descriptor failed", 17);
+    return false;
+  }
+  return scr_dyn_property_is_enumerable(value, key);
+}
+static ScrDyn *foreign_copy_get(void *value, const char *key, size_t length) {
+  foreign_copy_gets++;
+  if (foreign_copy_failure == 3) {
+    scr_throw_error_msg(SCR_ERR_RANGE, "get failed", 10);
+    return NULL;
+  }
+  return scr_dyn_obj_read(value, key, length);
+}
+static ScrDyn *foreign_copy_set(ScrClosure *closure, ScrDyn *const *args, size_t argc) {
+  (void)closure; (void)args;
+  check(argc == 1, "assign invokes the target setter with one value");
+  foreign_copy_sets++;
+  if (foreign_copy_failure == 4) {
+    scr_throw_error_msg(SCR_ERR_RANGE, "set failed", 10);
+    return NULL;
+  }
+  foreign_copy_source->v.obj.entries[1].enumerable = true;
+  scr_dyn_obj_set(foreign_copy_source, "tail", 4, scr_dyn_new_num(99));
+  return scr_dyn_retain(scr_dyn_undefined());
+}
+static void test_foreign_copy_properties(void) {
+  ScrDynForeignOps ops = {
+    .base = { .cls = "Foreign", .retain = scr_dyn_retain_v, .release = scr_dyn_release_v,
+      .get = foreign_copy_get },
+    .keys = foreign_copy_keys, .has = foreign_copy_has,
+  };
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, &ops.base);
+  ScrDyn *source = scr_dyn_new_obj();
+  foreign_copy_source = source;
+  scr_dyn_obj_set(source, "first", 5, scr_dyn_new_num(1));
+  scr_dyn_obj_set(source, "hidden", 6, scr_dyn_new_num(2));
+  scr_dyn_obj_set(source, "tail", 4, scr_dyn_new_num(3));
+  ScrDyn *child = scr_dyn_new_obj();
+  scr_dyn_obj_set(source, "child", 5, scr_dyn_retain(child));
+  ScrDyn *prototype = scr_dyn_new_obj();
+  scr_dyn_obj_set(prototype, "inherited", 9, scr_dyn_new_num(4));
+  scr_dyn_release(scr_dyn_set_prototype(source, prototype));
+  scr_dyn_release(prototype);
+  ScrDyn *box = scr_dyn_new_handle(source, SCR_DYNH_FOREIGN);
+  ScrStr *first = S("first");
+  ScrDyn *key = scr_dyn_new_str(first);
+  scr_str_release(first);
+  for (unsigned failure = 0; failure <= 4; failure++) {
+    for (unsigned spread = 0; spread < 2; spread++) {
+      if (spread && failure == 4) continue; /* spread bypasses setters */
+      foreign_copy_failure = failure;
+      foreign_copy_gets = foreign_copy_sets = 0;
+      source->v.obj.entries[1].enumerable = false;
+      scr_dyn_obj_set(source, "tail", 4, scr_dyn_new_num(3));
+      ScrDyn *target = scr_dyn_new_obj(), *descriptor = scr_dyn_new_obj();
+      scr_dyn_obj_set(descriptor, "set", 3, json_test_func(foreign_copy_set));
+      scr_dyn_obj_set(descriptor, "configurable", 12, scr_dyn_new_bool(true));
+      scr_dyn_release(scr_dyn_define_property(target, key, descriptor));
+      scr_dyn_release(descriptor);
+      ScrDyn *result = spread ? scr_dyn_copy_data_properties(target, box) : scr_dyn_assign(target, box);
+      if (failure) {
+        check(!result && scr_exc_pending(), "foreign copy preserves abrupt completion");
+        check(foreign_copy_gets == (failure >= 3 ? 1 : 0), "failure stops later source getters");
+        check(foreign_copy_sets == (failure == 4 ? 1 : 0), "failure stops later target writes");
+        check(!scr_dyn_obj_get(target, "tail", 4), "failure leaves later properties untouched");
+        const char *messages[] = { "", "keys failed", "descriptor failed", "get failed", "set failed" };
+        ScrCaught *error = scr_exc_pending() ? scr_exc_take() : NULL;
+        check(error && error->kind == SCR_EXC_OBJ &&
+          str_is(((ScrError *)error->payload)->name, "RangeError") &&
+          str_is(((ScrError *)error->payload)->message, messages[failure]),
+          "foreign copy preserves the original exception");
+        scr_caught_release(error);
+      } else {
+        check(result == target && !scr_exc_pending(), "foreign copy returns its target");
+        ScrDyn *tail = scr_dyn_obj_get(target, "tail", 4);
+        check(tail && tail->v.num == (spread ? 3 : 99), "assign interleaves source getters and target setters");
+        check((scr_dyn_obj_get(target, "hidden", 6) != NULL) == !spread,
+          "copy rechecks enumerability after prior side effects");
+        check(!scr_dyn_obj_get(target, "inherited", 9), "copy excludes inherited properties");
+        check(scr_dyn_obj_get(target, "child", 5) == child, "copy preserves object value identity");
+        check(foreign_copy_sets == !spread, "spread creates data properties without invoking setters");
+        if (spread) {
+          ScrDyn *value = scr_dyn_obj_read(target, "first", 5);
+          check(value && value->kind == SCR_DYN_NUM && value->v.num == 1, "spread replaces a configurable accessor");
+          scr_dyn_release(value);
+        }
+      }
+      scr_dyn_release(result); scr_dyn_release(target);
+    }
+  }
+  foreign_copy_failure = 0;
+  ops.has = NULL;
+  source->v.obj.entries[1].enumerable = false;
+  ScrDyn *target = scr_dyn_new_obj();
+  ScrDyn *result = scr_dyn_copy_data_properties(target, box);
+  check(result && target->v.obj.len == 3 && !scr_dyn_obj_get(target, "hidden", 6),
+    "keys-only foreign sources use their own enumerable snapshot");
+  scr_dyn_release(result); scr_dyn_release(target);
+  ops.keys = NULL;
+  target = scr_dyn_new_obj();
+  result = scr_dyn_copy_data_properties(target, box);
+  check(result && target->v.obj.len == 0 && !scr_exc_pending(), "ownership-only foreign source copies no keys");
+  scr_dyn_release(result); scr_dyn_release(target);
+  scr_dyn_release(key); scr_dyn_release(box); scr_dyn_release(child); scr_dyn_release(source);
+  foreign_copy_source = NULL;
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, NULL);
+}
+
 static bool foreign_delete(void *value, const ScrStr *key) {
   if (str_is(key, "blocked")) return false;
   if (str_is(key, "throws")) {
@@ -681,6 +803,7 @@ int main(void) {
   scr_init();
   test_primitive_owners();
   test_foreign_optional_callbacks();
+  test_foreign_copy_properties();
   test_foreign_delete();
 
   /* ── primitives ─────────────────────────────────────────────────── */

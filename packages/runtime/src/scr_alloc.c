@@ -18,8 +18,8 @@
  * tentative definition becomes a COMMON symbol, which library localization
  * deliberately keeps global (abi.localize_runtime), leaking it from every
  * localized library archive. */
-#ifdef SCR_WORKERS
-_Thread_local ScrThreadHot scr_thread_hot = {{0}};
+#if SCR_ALLOC_THREADS
+_Thread_local ScrThreadHot scr_thread_hot = {0};
 #else
 ScrSaState scr_sa = {0};
 #endif
@@ -574,7 +574,7 @@ static void scr_sa_large_note(void *p, size_t n) {
 #define SCR_SA_LARGE_NOTE(p, n) ((void)0)
 #endif
 
-#ifdef SCR_WORKERS
+#if SCR_ALLOC_THREADS
 #include <pthread.h>
 #include <stdatomic.h>
 #if defined(__linux__) && defined(MADV_DONTNEED)
@@ -602,6 +602,39 @@ static _Atomic(ScrSaBlock *) scr_sa_remote[SCR_SA_ARENAS]; /* foreign frees */
 static _Thread_local int scr_sa_arena = -1;
 static _Thread_local bool scr_sa_refused; /* this thread got no arena */
 _Static_assert(SCR_SA_ARENAS <= 32, "one claim bit per arena");
+
+#if defined(SCR_LIB) && defined(SCR_THREAD_INSTANCES)
+/* The embedder owns its threads. Register on first allocation, leaving
+ * session dispose/reinit independent of arena lifetime. Parking keeps live
+ * blocks mapped; later destructors and foreign owners use the remote list. */
+static void scr_sa_thread_exit(void *unused) {
+  (void)unused;
+  scr_sa_thread_park();
+}
+
+#ifdef __APPLE__
+/* Darwin frees native TLS before ordinary pthread-key destructors. Use the
+ * compiler's C++ thread_local destructor ABI while our TLS is still alive. */
+extern void _tlv_atexit(void (*destructor)(void *), void *object);
+static bool scr_sa_watch_thread(void) {
+  _tlv_atexit(scr_sa_thread_exit, NULL);
+  return true;
+}
+#else
+static pthread_once_t scr_sa_exit_once = PTHREAD_ONCE_INIT;
+static pthread_key_t scr_sa_exit_key;
+static bool scr_sa_exit_ready;
+
+static void scr_sa_exit_init(void) {
+  scr_sa_exit_ready = pthread_key_create(&scr_sa_exit_key, scr_sa_thread_exit) == 0;
+}
+
+static bool scr_sa_watch_thread(void) {
+  return pthread_once(&scr_sa_exit_once, scr_sa_exit_init) == 0 && scr_sa_exit_ready &&
+         pthread_setspecific(scr_sa_exit_key, (void *)1) == 0;
+}
+#endif
+#endif
 
 static bool scr_sa_reserve_region(void) {
   pthread_mutex_lock(&scr_sa_region_lock);
@@ -647,6 +680,12 @@ static void scr_sa_drain_remote(void) {
 /* Claims an arena for the calling thread: a parked one continues with its
  * free lists and bump pointers, a fresh one starts empty. */
 static bool scr_sa_reserve(void) {
+#if defined(SCR_LIB) && defined(SCR_THREAD_INSTANCES)
+  if (!scr_sa_watch_thread()) {
+    scr_sa_refused = true;
+    return false;
+  }
+#endif
   if (!atomic_load_explicit(&scr_sa_region, memory_order_acquire) && !scr_sa_reserve_region()) {
     scr_sa_refused = true;
     return false;
@@ -1002,14 +1041,14 @@ static bool scr_sa_reserve(void) {
   scr_sa_refused = true;
   return false;
 }
-#endif /* SCR_WORKERS */
+#endif /* SCR_ALLOC_THREADS */
 
 /* Runs once per class (to reserve and open its slice) and then only for
  * blocks the fast path does not serve. */
 __attribute__((cold, noinline)) void *scr_sa_slow(size_t n, bool zero) {
   if (n - 1 < SCR_SA_MAX && (scr_sa.span || (!scr_sa_refused && scr_sa_reserve()))) {
     unsigned c = scr_sa_class(n);
-#ifdef SCR_WORKERS
+#if SCR_ALLOC_THREADS
     /* A claimed arena may be a parked one with free blocks and bump room,
      * and other threads may have returned blocks since the last miss. */
     if (atomic_load_explicit(&scr_sa_remote[scr_sa_arena], memory_order_relaxed))
@@ -1059,7 +1098,7 @@ void *scr_mem_realloc(void *p, size_t n) {
   uintptr_t off = (uintptr_t)p - scr_sa.base;
   size_t have;
   if (off < scr_sa.span) have = scr_sa_class_size((unsigned)(off >> scr_sa.shift));
-#ifdef SCR_WORKERS
+#if SCR_ALLOC_THREADS
   else if ((have = scr_sa_foreign_size(p)) != 0) {
     /* Another arena's block: move it into this thread's allocator. */
   }
@@ -1079,7 +1118,7 @@ void *scr_mem_realloc(void *p, size_t n) {
 }
 #else
 void *scr_mem_realloc(void *p, size_t n) { return realloc(p, n); }
-#ifdef SCR_WORKERS
+#if SCR_ALLOC_THREADS
 void scr_sa_thread_park(void) {}
 void scr_sa_wait_trims(void) {}
 void scr_sa_free_foreign(void *p) { free(p); }

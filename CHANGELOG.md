@@ -6,6 +6,21 @@ All notable changes to scriptc will be documented in this file.
 
 <!-- release:start -->
 
+## 0.3.7
+
+### zshannon fork
+
+Based on the exact upstream v0.3.6 release commit `fab1a29b333047bf799f6ff498100176c00bb7b7`.
+
+- Restore pooled allocation for thread-instance libraries while retaining thread isolation, sanitizer behavior, and safe thread-exit cleanup.
+- Index JavaScriptCore wrapper aliases by native identity so cache misses do not scan unrelated live values.
+- Preserve own enumerable properties when spreading or assigning foreign objects, including getter/setter ordering and exceptions.
+- Cover concurrent library sessions, late host releases, repeated thread exits, and wrapper identity/lifetime behavior in fork CI.
+- Keep the full upstream CI matrix available by manual dispatch; automatic checks use the fork's self-hosted Apple-focused workflow.
+
+<!-- release:end -->
+
+
 ## 0.3.6
 
 ### zshannon fork
@@ -47,7 +62,6 @@ Based on the exact upstream v0.3.6 release commit `fab1a29b333047bf799f6ff498100
 - **`Object.setPrototypeOf` returns primitive receivers,** and `createHmac` without a key throws Node's error.
 - **Boxed records that hold an async function link the dynamic promise unit.**
 
-<!-- release:end -->
 
 ## 0.3.5
 

@@ -45,6 +45,7 @@ jobs:
           pnpm test
           packages/compiler/src/ir
           packages/compiler/src/frontend/lowering
+          packages/compiler/src/backend/llvm/alloc.test.ts
           packages/compiler/src/backend/llvm/bag-inputs.test.ts
           packages/compiler/src/backend/llvm/stable-capture-inputs.test.ts
           packages/compiler/src/library/library-profile.test.ts
@@ -89,11 +90,13 @@ jobs:
       - name: Native library regressions
         run: >-
           pnpm test
+          packages/runtime/src/scr_alloc.test.ts
           packages/runtime/test/json.test.ts
           packages/compiler/test/js-hoisted-open-record.test.ts
           packages/compiler/test/js-nullable-constructor.test.ts
           packages/compiler/test/receiverless-local-methods.test.ts
           packages/compiler/test/library-dispose.test.ts
+          packages/compiler/test/library-thread-allocator.test.ts
       - name: JavaScriptCore lifetime tests
         run: node scripts/test-jsc.mjs
 

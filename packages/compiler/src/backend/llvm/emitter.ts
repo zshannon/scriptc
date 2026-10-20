@@ -1288,9 +1288,9 @@ export class LlEmitter {
         targetTriple: options.targetTriple,
         threadInstances: mod.lib?.threadInstances === true,
       }),
-      // Worker programs keep one allocator per script thread: the inline
-      // paths address its thread-local state.
-      threadLocalAlloc: mod.workers === true,
+      // Workers and thread-instanced libraries share the per-thread allocator
+      // layout; inline paths address the calling thread's hot state.
+      threadLocalAlloc: mod.workers === true || mod.lib?.threadInstances === true,
       rcHelpers: this.rcHelpers,
       ...(this.rcMode !== undefined ? { rcMode: this.rcMode } : {}),
       ...(this.rcHelpersNoinline ? { rcHelpersNoinline: true } : {}),

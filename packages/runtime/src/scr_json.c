@@ -10500,6 +10500,24 @@ static void scr_dyn_assign_strings_from(ScrDyn *target, const ScrDyn *src, bool 
     scr_dyn_release(keys);
     return;
   }
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(src);
+  if (foreign && foreign->keys) {
+    /* Snapshot all names when descriptors are available: an earlier getter
+     * or target setter can make a later property enumerable. */
+    ScrDyn *keys = foreign->keys(src->v.handle.ptr, foreign->has ? 1 : 0);
+    if (!keys) return;
+    for (size_t i = 0; i < keys->v.arr.len && !scr_exc_pending(); i++) {
+      ScrStr *key = keys->v.arr.items[i]->v.str;
+      if (foreign->has && !foreign->has(src->v.handle.ptr, key, 2)) continue;
+      if (scr_exc_pending()) break;
+      ScrDyn *value = scr_dyn_obj_read(src, key->data, key->len);
+      if (!value) break;
+      if (!scr_exc_pending()) scr_dyn_copy_property(target, key, value, define);
+      scr_dyn_release(value);
+    }
+    scr_dyn_release(keys);
+    return;
+  }
   if (src->kind != SCR_DYN_ARR && src->kind != SCR_DYN_STR &&
       src->kind != SCR_DYN_BYTES) {
     return;

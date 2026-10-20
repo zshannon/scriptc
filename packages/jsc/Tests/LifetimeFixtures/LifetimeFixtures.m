@@ -519,3 +519,98 @@ bool lifetime_persistent_replacement_finalizer(void) {
     finish(f); return deferred && alive && released;
   }
 }
+
+__attribute__((noinline)) static void add_unrelated_wrappers(Fixture f, unsigned first, unsigned end) {
+  @autoreleasepool {
+    scr_jsc_enter(f.state);
+    JSObjectRef roots = (JSObjectRef)evaluate(f, "globalThis.root ??= []");
+    for (unsigned i = first; i < end; i++) {
+      ScrDyn *native = scr_dyn_new_obj();
+      JSObjectSetPropertyAtIndex(f.context, roots, i, wrapper(f, native), NULL);
+      scr_dyn_release(native);
+    }
+    scr_jsc_leave(f.state);
+  }
+}
+static double identity_miss_time(Fixture f) {
+  char missing;
+  double fastest = INFINITY;
+  for (int sample = 0; sample < 3; sample++) {
+    @autoreleasepool {
+      double start = CFAbsoluteTimeGetCurrent();
+      for (int i = 0; i < 4096; i++) {
+        if (scr_jsc_find_native(f.state, &missing)) return -1;
+      }
+      double elapsed = CFAbsoluteTimeGetCurrent() - start;
+      if (elapsed < fastest) fastest = elapsed;
+    }
+  }
+  return fastest;
+}
+bool lifetime_identity_miss_scaling(void) {
+  @autoreleasepool {
+    Fixture f = fixture(); add_unrelated_wrappers(f, 0, 64); collect(f);
+    double small = identity_miss_time(f);
+    add_unrelated_wrappers(f, 64, 8192); collect(f);
+    double large = identity_miss_time(f);
+    fprintf(stderr, "identity miss / 4096 lookups: 64 wrappers %.6fs; 8192 wrappers %.6fs\n", small, large);
+    /* A 128x larger unrelated population must not impose a linear lookup cost.
+     * Use the fastest of three batches and a broad allowance for noisy hosts. */
+    bool pass = small > 0 && large > 0 && large < small * 8 + 0.001 &&
+      scr_jsc_native_count(f.state) == 8192;
+    finish(f); return pass;
+  }
+}
+
+__attribute__((noinline)) static uintptr_t create_expiring_alias_facade(Fixture f) {
+  @autoreleasepool {
+    scr_jsc_enter(f.state);
+    JSObjectRef alias = (JSObjectRef)evaluate(f, "alias");
+    JSValueRef facade = evaluate(f, "new Proxy(alias,{})");
+    scr_jsc_set_facade(f.state, alias, facade);
+    scr_jsc_leave(f.state);
+    /* Do not leave a conservative JS root on the caller's stack during GC. */
+    return ~(uintptr_t)facade;
+  }
+}
+bool lifetime_expired_facade_alias(void) {
+  @autoreleasepool {
+    Fixture f = fixture(); create_owned(f, false, true);
+    uintptr_t expired = create_expiring_alias_facade(f); collect(f);
+    bool alive = destroyed == 0 && scr_jsc_native_count(f.state) == 2 &&
+      surviving_wrapper_identity(f) && scr_jsc_find_box(f.state, (JSValueRef)~expired) == NULL;
+    evaluate(f, "alias=null"); collect(f);
+    alive &= scr_jsc_native_count(f.state) == 1 && surviving_wrapper_identity(f);
+    evaluate(f, "root=null"); collect(f);
+    bool released = destroyed == 1 && scr_jsc_native_count(f.state) == 0;
+    finish(f); return alive && released;
+  }
+}
+
+__attribute__((noinline)) static void create_third_alias(Fixture f) {
+  @autoreleasepool {
+    scr_jsc_enter(f.state);
+    ScrDyn *native = scr_jsc_find_box(f.state, evaluate(f, "root"));
+    property(f, JSContextGetGlobalObject(f.context), "cycleEndpoint", wrapper(f, native));
+    scr_jsc_leave(f.state);
+  }
+}
+__attribute__((noinline)) static bool newest_wrapper_identity(Fixture f) {
+  @autoreleasepool {
+    JSValueRef newest = evaluate(f, "cycleEndpoint");
+    ScrDyn *native = scr_jsc_find_box(f.state, newest);
+    return native && scr_jsc_find_native(f.state, native) == newest;
+  }
+}
+bool lifetime_middle_alias(void) {
+  @autoreleasepool {
+    Fixture f = fixture(); create_owned(f, false, true); create_third_alias(f);
+    evaluate(f, "alias=null"); collect(f);
+    bool alive = destroyed == 0 && scr_jsc_native_count(f.state) == 2 && newest_wrapper_identity(f);
+    evaluate(f, "cycleEndpoint=null"); collect(f);
+    alive &= scr_jsc_native_count(f.state) == 1 && surviving_wrapper_identity(f);
+    evaluate(f, "root=null"); collect(f);
+    bool released = destroyed == 1 && scr_jsc_native_count(f.state) == 0;
+    finish(f); return alive && released;
+  }
+}

@@ -194,18 +194,18 @@ void scr_cyc_free(void *obj); /* frees the block, header included */
  *
  * Compiled to the plain system calls under SCR_RC_AUDIT and AddressSanitizer
  * (the audit lane must see every logical free as a real free), on targets
- * without a cheap address-space reservation (wasm32, Windows, 32-bit), and
- * in thread-instanced library archives, where several runtime instances
- * run on embedder threads the runtime does not manage. Elsewhere the
- * allocator state is unsynchronized: runtime objects are only allocated
+ * without a cheap address-space reservation (wasm32, Windows, 32-bit).
+ * Ordinary executables and single-instance libraries share one allocator.
+ * Their allocator state is unsynchronized: runtime objects are only allocated
  * and freed on their runtime thread (native worker jobs never touch them).
  *
- * Worker executables (SCR_WORKERS) give every script thread its own
+ * Worker executables and thread-instanced libraries give every thread its own
  * allocator: `scr_sa` is thread-local and describes the thread's ARENA, one
  * of SCR_SA_ARENAS equal slices of a single process-wide reservation, so
  * the owning arena of any block is address arithmetic. A thread claims an
  * arena on its first allocation and parks it (free lists and bump pointers
  * intact) when it exits; the next thread to claim it continues from there.
+ * Library arenas survive session resets and park automatically at thread exit.
  * On Linux an exiting thread that carved much first returns the pages of
  * its arena that hold only free blocks (scr_alloc.c). Script objects stay on their thread, so a free
  * normally hits the caller's own arena inline. A block freed by another
@@ -215,8 +215,7 @@ void scr_cyc_free(void *obj); /* frees the block, header included */
  * SCR_SA_ARENAS, or a refused reservation, use the system allocator. */
 #include <stdlib.h>
 #if defined(SCR_RC_AUDIT) || defined(__SANITIZE_ADDRESS__) || defined(__wasi__) || \
-    defined(__wasm__) || defined(_WIN32) || UINTPTR_MAX != UINT64_MAX ||              \
-    (defined(SCR_LIB) && defined(SCR_THREAD_INSTANCES))
+    defined(__wasm__) || defined(_WIN32) || UINTPTR_MAX != UINT64_MAX
 #define SCR_SMALL_ALLOC 0
 #elif defined(__has_feature)
 #if __has_feature(address_sanitizer)
@@ -288,12 +287,20 @@ typedef struct ScrSaState {
   ScrSaBlock *free[SCR_SA_NCLASS];
   char *bump[SCR_SA_NCLASS], *lim[SCR_SA_NCLASS];
 } ScrSaState;
-/* Worker executables keep one allocator per script thread (see above). Its
+/* Both modes isolate allocator state without enabling worker execution in
+ * libraries. Keep the hot block layout identical in sanitizer builds. */
+#if defined(SCR_WORKERS) || (defined(SCR_LIB) && defined(SCR_THREAD_INSTANCES))
+#define SCR_ALLOC_THREADS 1
+#else
+#define SCR_ALLOC_THREADS 0
+#endif
+
+/* Threaded runtimes keep one allocator per thread (see above). Its
  * state shares one thread-local block with the collector's live counts and
  * the weak dispose hook (ScrThreadHot below): on Darwin every distinct
  * thread-local costs a call per function that touches it, and allocation
  * and free paths touch all four. */
-#ifdef SCR_WORKERS
+#if SCR_ALLOC_THREADS
 /* The per-thread state of the allocation and free fast paths, in one
  * thread-local block; its layout is an ABI (llvm/alloc.ts addresses the
  * fields at fixed offsets from one llvm.threadlocal.address). */
@@ -327,11 +334,11 @@ _Static_assert(offsetof(ScrSaState, span) == 8 && offsetof(ScrSaState, shift) ==
 #error "emitted allocation fast paths skip the RC-audit object notes"
 #endif
 
-#ifdef SCR_WORKERS
+#if SCR_ALLOC_THREADS
 /* A block outside the calling thread's arena: another arena's (remote
  * free) or the system's. */
 void scr_sa_free_foreign(void *p);
-/* The calling script thread is done with its arena (worker exit). */
+/* The calling thread is done with its arena (thread exit, not session reset). */
 void scr_sa_thread_park(void);
 /* Waits until the arenas of exited threads are trimmed (tests). */
 void scr_sa_wait_trims(void);
@@ -394,7 +401,7 @@ static inline void scr_mem_free(void *p) { free(p); }
  * (llvm/alloc.ts), which do the same three things: header (the registry
  * id; the rest starts zero: SCR_CYC_BLACK, SCR_CYC_NURSERY, unbuffered),
  * live count, block. */
-#ifndef SCR_WORKERS
+#if !SCR_ALLOC_THREADS
 extern SCR_TL size_t scr_cyc_live;
 extern SCR_TL size_t scr_cyc_old_freed;
 extern SCR_TL void (*scr_weak_dispose_hook)(void *);

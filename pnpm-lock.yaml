@@ -8,7 +8,9 @@ overrides:
   '@napi-rs/wasm-runtime': 1.1.6
 
 patchedDependencies:
-  vitest@3.2.7: 03a418fae669c2cd9846dc3c49e6c1b8ee7047bbdcda9d4f5d5ee09eb525a1be
+  vitest@3.2.7:
+    hash: 03a418fae669c2cd9846dc3c49e6c1b8ee7047bbdcda9d4f5d5ee09eb525a1be
+    path: patches/vitest@3.2.7.patch
 
 importers:
 

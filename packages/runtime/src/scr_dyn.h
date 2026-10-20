@@ -815,9 +815,9 @@ ScrDyn *scr_weak_map_new(ScrDyn *entries);
 ScrDyn *scr_weak_set_new(ScrDyn *values);
 ScrDyn *scr_dyn_from_entries(ScrDyn *entries);
 ScrDyn *scr_dyn_mark_snapshot(ScrDyn *value); /* consumes and returns +1 */
-/* Optional non-owning observers, installed by weak collections (worker
- * executables keep the hook in scr_thread_hot). */
-#ifndef SCR_WORKERS
+/* Optional non-owning observers, installed by weak collections (threaded
+ * allocators keep the hook in scr_thread_hot). */
+#if !SCR_ALLOC_THREADS
 extern SCR_TL void (*scr_weak_dispose_hook)(void *);
 #endif
 void scr_weak_dispose(void *object);
