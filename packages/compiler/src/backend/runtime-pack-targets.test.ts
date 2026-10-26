@@ -52,7 +52,11 @@ async function fixture(target: NativeTargetSpec, workers = false) {
       object_format: target.objectFormat,
       minimum_os: target.minimumOs,
     },
+<<<<<<< ours
     runtime_abi: { version: 1, marker: "scr_zshannon_runtime_abi_v1" },
+=======
+    runtime_abi: { version: 45, marker: "scr_runtime_abi_v45" },
+>>>>>>> theirs
     compiler: { command: "fixture", identity: "fixture", target: target.llvmTriple },
     macros: { executable: [], excluded: ["SCR_LIB"], sanitizer: "external-toolchain-required" },
     flavors: {
@@ -107,18 +111,31 @@ const features = {
   bigint: false,
   searchParams: false,
   qs: false,
+  utilPromisify: false,
+  dynBuiltinClass: false,
+  dynBuiltinStream: false,
   parseArgs: false,
   stream: false,
   net: false,
   http: false,
   http2: false,
   dgram: false,
+  dnsPromises: false,
+  dgramDyn: false,
+  textCodecDyn: false,
   watch: false,
   foreignFfi: false,
   nodeTest: false,
   tls: false,
   tlsCa: false,
   cipher: false,
+  ecdh: false,
+  dh: false,
+  pki: false,
+  ed25519: false,
+  x509: false,
+  webcrypto: false,
+  perfLoop: false,
 };
 
 test.each([

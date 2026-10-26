@@ -10,7 +10,7 @@
  *
  * Ratified shape (the ratified library-mode design §5.1 + the ABI ratification session):
  *   {
- *     "profile_format": 1,
+ *     "profile_format": 1 | 2,              // 2 adds the cstring class
  *     "name": "<embedder identity string>",
  *     "entry": "src/lib.ts",                  // ONE module, profile-relative
  *     "emission": "llvm",                // pins the emission; no fallback
@@ -273,6 +273,7 @@ export const LIB_PARAM_CLASSES = [
   "f64",
   "bool",
   "string",
+  "cstring",
   "bytes",
   "u8",
   "u32",
@@ -287,7 +288,16 @@ export const LIB_PARAM_CLASSES = [
  * u8/u32/i32 plumbing classes stay param-only: they were ratified as
  * inbound plumbing, and outbound integers are the proven classes'
  * business. */
-export const LIB_RETURN_CLASSES = ["f64", "bool", "string", "bytes", "void", "i64", "u64"] as const;
+export const LIB_RETURN_CLASSES = [
+  "f64",
+  "bool",
+  "string",
+  "cstring",
+  "bytes",
+  "void",
+  "i64",
+  "u64",
+] as const;
 
 /** Ask 4's declared integer classes (the prove-or-refuse pair). */
 export type LibIntClass = "i64" | "u64";
@@ -306,11 +316,18 @@ const LIB_CALLBACK_PARAM_CLASSES = [
   "f64",
   "bool",
   "string",
+<<<<<<< ours
+=======
+  "cstring",
+>>>>>>> theirs
   "bytes",
   "u8",
   "u32",
   "i32",
+<<<<<<< ours
   "dyn",
+=======
+>>>>>>> theirs
 ] as const;
 /** Marshalling classes legal in a CALLBACK RETURN position (inbound: host
  * → compiled code). Scalars only — every conversion to f64 is exact by
@@ -391,7 +408,7 @@ export interface LibrarySidecarConfig {
 }
 
 export interface LibraryProfile {
-  profileFormat: 1;
+  profileFormat: 1 | 2;
   name: string;
   /** The profile file that produced this configuration. Semantic
    * designation errors anchor here, where the offending name is written. */
@@ -532,8 +549,16 @@ export function loadLibraryProfile(
     }
     const p = raw as Record<string, unknown>;
     const format = req<number>(p["profile_format"], "profile_format", "number");
-    if (format !== 1)
-      throw new ProfileError(`unsupported profile_format ${format} (this scriptc reads format 1)`);
+    if (format !== 1 && format !== 2)
+      throw new ProfileError(
+        `unsupported profile_format ${format} (this scriptc reads formats 1 and 2)`,
+      );
+    // The cstring class (a NUL-terminated `const char *`) is format 2.
+    const cstringClass = (cls: string, path: string): void => {
+      if (cls === "cstring" && format < 2) {
+        throw new ProfileError(`'${path}' class 'cstring' requires profile_format 2`);
+      }
+    };
     // Root keys are strict (checked AFTER the format gate, so a future
     // format's profile refuses as the wrong format, not as a typo). The
     // ask-5 key names get the pointed message: a `fences` array pasted at
@@ -691,6 +716,7 @@ export function loadLibraryProfile(
             `'${path}.params[${j}]' must be one of ${LIB_PARAM_CLASSES.join("/")}, got ${JSON.stringify(c)}`,
           );
         }
+        cstringClass(c, `${path}.params[${j}]`);
         return c as LibParamClass;
       });
       const returns = req<string>(ee["returns"], `${path}.returns`, "string");
@@ -701,6 +727,7 @@ export function loadLibraryProfile(
             : `'${path}.returns' must be one of ${LIB_RETURN_CLASSES.join("/")}, got '${returns}'`;
         throw new ProfileError(detail);
       }
+      cstringClass(returns, `${path}.returns`);
       entries.push({ export: exportName, symbol, params, returns: returns as LibReturnClass });
     });
 
@@ -744,12 +771,13 @@ export function loadLibraryProfile(
               `'${path}.params[${j}]' must be one of ${LIB_CALLBACK_PARAM_CLASSES.join("/")}, got ${JSON.stringify(cls)}`,
             );
           }
+          cstringClass(cls, `${path}.params[${j}]`);
           return cls as LibCallbackParamClass;
         });
         const cbReturns = req<string>(cc["returns"], `${path}.returns`, "string");
         if (!(LIB_CALLBACK_RETURN_CLASSES as readonly string[]).includes(cbReturns)) {
           const detail =
-            cbReturns === "string" || cbReturns === "bytes"
+            cbReturns === "string" || cbReturns === "cstring" || cbReturns === "bytes"
               ? `'${path}.returns': a callback return stays scalar — a buffer flowing host → library needs an ownership contract the mode does not define; pass buffers as callback parameters (library → host, borrowed for the call) or entry parameters instead`
               : `'${path}.returns' must be one of ${LIB_CALLBACK_RETURN_CLASSES.join("/")}, got '${cbReturns}'`;
           throw new ProfileError(detail);
@@ -1046,7 +1074,7 @@ export function loadLibraryProfile(
     return {
       ok: true,
       profile: {
-        profileFormat: 1,
+        profileFormat: format as 1 | 2,
         name,
         profilePath,
         entry,

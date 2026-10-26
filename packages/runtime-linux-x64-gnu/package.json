@@ -1,6 +1,11 @@
 {
+<<<<<<< ours
   "name": "@zshannon/scriptc-runtime-linux-x64-gnu",
   "version": "0.3.7",
+=======
+  "name": "@scriptc/runtime-linux-x64-gnu",
+  "version": "0.4.5",
+>>>>>>> theirs
   "description": "Precompiled scriptc runtime pack for Linux x64 glibc",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",

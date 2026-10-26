@@ -10,6 +10,7 @@ Use the compiler's existing `compile` or `compileLibrary` JavaScript exports. Ke
 
 The optional `ScriptCJavaScriptCore` SwiftPM product is exposed by the root `Package.swift`. A consuming package can use `.package(url: "https://github.com/zshannon/scriptc.git", from: "0.3.6")` after that tag is published. Link it alongside the matching archive produced by `compileLibrary`. Its shipping target uses package-relative headers and standard SwiftPM ARC settings. The nested `packages/jsc` manifest is the lifetime-test harness; its `SCRIPTC_RUNTIME_LIBRARY` setting is not a shipping dependency. See [the adapter contract](packages/jsc/README.md).
 
+<<<<<<< ours
 ## Release setup and procedure
 
 1. Configure the GitHub `Release` environment and npm publishing access for the fork's package names. The existing workflow uses npm trusted publishing with repository `zshannon/scriptc`, calling workflow `fork-ci.yml` and environment `Release`. New npm packages need their initial registration and publisher configuration before this workflow can publish them.
@@ -44,3 +45,12 @@ GitHub schedules run on the default branch and may be disabled after 60 days wit
 ## Pull request checks
 
 `fork-ci.yml` runs on pull requests, pushes to `main`, and manual dispatch. It uses the existing self-hosted `ubuntu-noble-lg` and `macos-xl` pools for build, lint, format, generated-source checks, compiler regressions, release/updater tests, native library regressions, and the 22 JSC lifetime cases in Release and AddressSanitizer configurations. External-fork code requires review before using these runners. The inherited upstream `ci.yml` is manual-only in this fork; these focused checks do not certify its full Intel, Linux, Windows, or bootstrap matrix.
+=======
+Release builds of the native CLI optimize the compiler with a profile collected on the release commit. The `cli-profile` job runs `node scripts/refresh-cli-profile.mjs` on Linux x64, which builds an instrumented compiler, runs it on tsc-ts, a slice of the corpus, and the runtime benchmark workloads, and writes the merged sparse profile. Every platform's CLI build uses that profile (`SCRIPTC_NATIVE_PROFILE_USE`), and the GitHub release attaches it as `scriptc-<version>-cli.profdata.gz`. Code the profile does not describe, or describes from older compiler sources, is optimized as without a profile. When the profile job fails, the CLI builds use the committed profile `packages/compiler/native/cli.profdata.gz`, which local and CI builds of the native compiler also use. Refresh the committed profile when compiler code has changed substantially since the last refresh: run `node scripts/refresh-cli-profile.mjs --tsc-ts <tsc-ts checkout>` on a quiet Linux x64 host and commit the new profile on its own.
+
+Publishing uses npm trusted publishing (OIDC) — there is no npm token secret.
+Each published package must have a GitHub Actions trusted publisher for
+`release.yml` and the `Release` environment. A missing configuration fails
+before upload. Re-runs skip package versions already present on npm, so a
+partially published release can be resumed safely.
+>>>>>>> theirs

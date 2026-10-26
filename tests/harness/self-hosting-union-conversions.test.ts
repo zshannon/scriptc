@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { expect, test } from "vitest";
+<<<<<<< ours
 import {
   compileC,
   deserializeModule,
@@ -12,6 +13,11 @@ import {
   validateModule,
 } from "@zshannon/scriptc-compiler";
 import type { AnalyzeResult, compile } from "@zshannon/scriptc-compiler";
+=======
+import { compileC, deserializeModule, emitLlvmModule, validateModule } from "@scriptc/compiler";
+import type { AnalyzeResult, compile } from "@scriptc/compiler";
+import { moduleLinkFeatures } from "./link-features.js";
+>>>>>>> theirs
 
 const root = join(import.meta.dirname, "../..");
 const sanitize = process.env["SCRIPTC_SAN"] === "1";
@@ -97,7 +103,13 @@ for (const fixture of ["ir-refinements", "union-conversions"]) {
           expect(module.functions.filter((fn) => fn.name.endsWith("retag"))).toHaveLength(5);
           const cPath = join(dir, "generated.ll");
           writeFileSync(cPath, emitLlvmModule(module));
-          await compileC({ cPath, outPath: exe("generated"), sanitize, optimization: "dev" });
+          await compileC({
+            cPath,
+            outPath: exe("generated"),
+            sanitize,
+            optimization: "dev",
+            ...moduleLinkFeatures(module),
+          });
           const generated = spawnSync(exe("generated"), [], runOptions);
           expect(generated.error).toBeUndefined();
           expect(generated.signal, generated.stderr).toBeNull();

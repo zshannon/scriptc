@@ -12,7 +12,12 @@ import {
   emitLlvmModule,
   serializeModule,
   validateModule,
+<<<<<<< ours
 } from "@zshannon/scriptc-compiler";
+=======
+} from "@scriptc/compiler";
+import { moduleLinkFeatures } from "./link-features.js";
+>>>>>>> theirs
 import { IR_VERSION } from "../../packages/compiler/src/ir/serialize.js";
 import { F64, VOID, type IrModule } from "../../packages/compiler/src/ir/ir.js";
 import { numLit } from "../../packages/compiler/src/ir/build.js";
@@ -206,7 +211,12 @@ for (const backend of ["llvm"] as const) {
       expect(Object.is(third.value, -0)).toBe(true);
       const cPath = join(dir, "numbers.ll");
       writeFileSync(cPath, emitLlvmModule(numeric));
-      await compileC({ cPath, outPath: executable("numbers"), sanitize });
+      await compileC({
+        cPath,
+        outPath: executable("numbers"),
+        sanitize,
+        ...moduleLinkFeatures(numeric),
+      });
       const program = spawnSync(executable("numbers"), [], runOptions);
       expect(program.error).toBeUndefined();
       expect(program.signal).toBeNull();
