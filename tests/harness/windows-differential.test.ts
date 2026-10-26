@@ -51,12 +51,8 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import ts5 from "typescript";
-<<<<<<< ours
 import { compile } from "@zshannon/scriptc-compiler";
-=======
-import { compile } from "@scriptc/compiler";
 import { tscJsxOracleEntry, wantsTscJsx } from "./jsx-oracle.js";
->>>>>>> theirs
 
 const execFileAsync = promisify(execFile);
 const enabled = process.env["SCRIPTC_WIN"] === "1";

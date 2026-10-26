@@ -533,6 +533,8 @@ export function emitModuleParts(emitter: LlEmitter): string[] {
     }
     emitter.declare(`declare void @scr_library_entry(i1 zeroext, ptr)`);
     emitter.declare(`declare void @scr_library_reset()`);
+    if (emitter.mod.lib.disposeSymbol !== undefined)
+      emitter.declare(`declare void @scr_library_dispose()`);
     emitter.declare(`declare void @scr_library_check_exc()`);
     emitter.declare(`declare void @scr_library_set_sink(ptr, ptr)`);
     emitter.declare(`declare void @scr_library_callback_entry_guard(ptr)`);
@@ -1853,6 +1855,7 @@ export function emitLibDefs(
     emitSymConst(lib.callbackRegisterSymbol);
   if (lib.resultResetSymbol !== null) emitSymConst(lib.resultResetSymbol);
   if (lib.collectSymbol !== null) emitSymConst(lib.collectSymbol);
+  if (lib.disposeSymbol !== undefined) emitSymConst(lib.disposeSymbol);
   for (const e of lib.exports) emitSymConst(e.symbol);
   out.push(``);
   if (emitter.wasi) {
@@ -1912,6 +1915,19 @@ export function emitLibDefs(
     const zero = ty === "double" ? f64Lit(0) : ty === "ptr" ? "null" : "false";
     return `  store ${ty} ${zero}, ptr @${mangleGlobal(g.id)} ; ${g.name}`;
   });
+  if (lib.disposeSymbol !== undefined) {
+    out.push(
+      `define void @${lib.disposeSymbol}() ${FN_ATTRS} {`,
+      `entry:`,
+      `  call void @scr_library_entry(i1 zeroext true, ptr ${symConst(lib.disposeSymbol)})`,
+      ...globalReleaseLines("cd"),
+      ...zeroStores,
+      `  call void @scr_library_dispose()`,
+      `  ret void`,
+      `}`,
+      ``,
+    );
+  }
   out.push(
     `define void @${lib.initSymbol}() ${FN_ATTRS} {`,
     `entry:`,

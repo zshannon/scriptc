@@ -5,20 +5,13 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
   analyze,
-<<<<<<< ours
-  coverageEnvelope,
-  coveragePasses,
-  renderCoverage,
-} from "@zshannon/scriptc-compiler";
-=======
   compile,
   coverageEnvelope,
   coveragePasses,
   renderCoverage,
   renderExplainDynamic,
   renderExplainIsland,
-} from "@scriptc/compiler";
->>>>>>> theirs
+} from "@zshannon/scriptc-compiler";
 import { shardSelect, shardSuffix } from "./shard.js";
 
 const repoRoot = join(import.meta.dirname, "../..");

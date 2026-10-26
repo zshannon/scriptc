@@ -683,19 +683,11 @@ export function emitGenericLibCall(host: LlvmEmitterContext, e: LibCallExpr): Ll
   const args = READ_ONLY_STRING_LIB_FNS.has(e.fn)
     ? emitBorrowedInputs(host, e.args)
     : e.args.map((a) =>
-<<<<<<< ours
-        // bagGet borrows inputs but may run accessors: only stable bindings
-        // can lend them, exactly like callback-capable JSON/iterator calls.
-        e.fn === "dyn.bagGet" || borrowsJsonInputs(e.fn) || borrowsIteratorInputs(e.fn)
-          ? emitBorrowedInput(host, a)
-          : host.emitExpr(a),
-=======
         a.type.kind === "date"
           ? { name: emitDateTimeArg(host, a), type: F64 }
-          : borrowsJsonInputs(e.fn) || borrowsIteratorInputs(e.fn)
+          : e.fn === "dyn.bagGet" || borrowsJsonInputs(e.fn) || borrowsIteratorInputs(e.fn)
             ? emitBorrowedInput(host, a)
             : host.emitExpr(a),
->>>>>>> theirs
       );
   // getTime and valueOf answer the time value the argument already is.
   if ((e.fn === "date.getTime" || e.fn === "date.valueOf") && e.args[0]?.type.kind === "date")

@@ -61,7 +61,7 @@ test("a missing cross-target runtime pack names its package in the diagnostic", 
   expect(pack.code).toBe("missing");
   const diagnostic = nativeCodegenDiag("SC3003", pack.message, "main.ts", pack.hint);
   expect(diagnostic.message).toBe(
-    "runtime pack for wasm32-wasi is not installed; install @scriptc/runtime-wasm32-wasi@0.3.5 in your project or set SCRIPTC_RUNTIME_PACK to its directory",
+    "runtime pack for wasm32-wasi is not installed; install @zshannon/scriptc-runtime-wasm32-wasi@0.3.5 in your project or set SCRIPTC_RUNTIME_PACK to its directory",
   );
   expect(diagnostic.hint).toBe(
     "scriptc includes the runtime pack for its own platform only; other targets need their runtime pack package in the project",

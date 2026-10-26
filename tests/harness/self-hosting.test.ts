@@ -11,12 +11,8 @@ import {
   deserializeModule,
   emitLlvmModule,
   validateModule,
-<<<<<<< ours
 } from "@zshannon/scriptc-compiler";
-=======
-} from "@scriptc/compiler";
 import { moduleLinkFeatures } from "./link-features.js";
->>>>>>> theirs
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 

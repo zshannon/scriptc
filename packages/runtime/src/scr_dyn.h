@@ -170,6 +170,7 @@ typedef enum {
   X(FILE, 42) /* ScrBlob with a name — new File() */ \
   X(FILE_HANDLE, 17) /* fs/promises.FileHandle */ \
   X(FINALIZATION_REGISTRY, 72) /* FinalizationRegistry (bookkeeping only) */ \
+  X(FOREIGN, 81) /* embedder-owned live foreign object */ \
   X(GLOBAL, 22) /* native global object identity */ \
   X(H2_SESSION, 4) /* ScrH2Session — Http2Session (client & server) */ \
   X(H2_STREAM, 5) /* ScrH2Stream — Http2Stream (client & server) */ \
@@ -223,61 +224,9 @@ typedef enum {
   X(WORKER, 35)
 
 typedef enum {
-<<<<<<< ours
-  SCR_DYNH_HTTP_REQ,   /* ScrHttpReq — IncomingMessage (server req & client res) */
-  SCR_DYNH_HTTP_RES,   /* ScrHttpRes — ServerResponse */
-  SCR_DYNH_NET_SOCKET, /* ScrNetSocket — net.Socket */
-  SCR_DYNH_NET_SERVER, /* ScrNetServer — net.Server (http.Server rides the same handle) */
-  SCR_DYNH_H2_SESSION, /* ScrH2Session — Http2Session (client & server) */
-  SCR_DYNH_H2_STREAM,  /* ScrH2Stream — Http2Stream (client & server) */
-  SCR_DYNH_HTTP_CLIENT, /* ScrHttpClientReq — http.ClientRequest */
-  SCR_DYNH_HTTP_AGENT,  /* ScrHttpAgent — http.Agent / https.Agent */
-  SCR_DYNH_ABORT_SIGNAL, /* native static-fetch AbortSignal */
-  SCR_DYNH_WEB_STREAM,   /* native WHATWG ReadableStream */
-  SCR_DYNH_WEB_READER,   /* native ReadableStreamDefaultReader */
-  SCR_DYNH_WEB_CONTROLLER, /* native ReadableStreamDefaultController */
-  SCR_DYNH_FETCH_RESPONSE, /* native static-fetch Response */
-  SCR_DYNH_FETCH_HEADERS, /* native static-fetch response Headers */
-  SCR_DYNH_EVENT,          /* ScrEvent — new Event() and AbortSignal's abort events */
-  SCR_DYNH_ABORT_CONTROLLER, /* native static-fetch AbortController */
-  SCR_DYNH_CHILD,          /* child_process.ChildProcess */
-  SCR_DYNH_FILE_HANDLE,    /* fs/promises.FileHandle */
-  SCR_DYNH_ARRAY_BUFFER,   /* fixed-length ArrayBuffer storage */
-  SCR_DYNH_SEGMENTER,     /* default Unicode grapheme segmentation */
-  SCR_DYNH_SEGMENTS,      /* iterable immutable segmentation result */
-  SCR_DYNH_BUILTIN_MODULE, /* native builtin export object */
-  SCR_DYNH_GLOBAL,         /* native global object identity */
-  SCR_DYNH_WEAK_MAP,       /* native weak-key metadata */
-  SCR_DYNH_WEAK_SET,       /* native weak membership */
-  SCR_DYNH_SET,            /* native Set<unknown>, shared backing map */
-  SCR_DYNH_REGEXP,         /* native RegExp, shared compiled pattern */
-  SCR_DYNH_STDIO,          /* stable process stdin/stdout/stderr values */
-  SCR_DYNH_URL,            /* native WHATWG URL */
-  SCR_DYNH_MAP,            /* native Map<unknown, unknown>, shared backing */
-  SCR_DYNH_DATE,           /* JavaScript Date with stable native identity */
-  SCR_DYNH_ITERATOR,       /* live native array/string/byte iterator */
-  SCR_DYNH_CONSOLE,        /* stored global console value */
-  SCR_DYNH_SEARCH_PARAMS,  /* live WHATWG URLSearchParams */
-  SCR_DYNH_FETCH_REQUEST,
-  SCR_DYNH_WORKER,
-  SCR_DYNH_MESSAGE_PORT,
-  SCR_DYNH_SHARED_ARRAY_BUFFER,
-  SCR_DYNH_CONSOLE_INSTANCE, /* node:console Console instance */
-  SCR_DYNH_EVENT_TARGET,   /* ScrEventTarget — new EventTarget() */
-  SCR_DYNH_CUSTOM_EVENT,   /* ScrEvent with detail — new CustomEvent() */
-  SCR_DYNH_BLOB,           /* ScrBlob — new Blob() and Blob#slice() */
-  SCR_DYNH_FILE,           /* ScrBlob with a name — new File() */
-  SCR_DYNH_KEY_OBJECT,     /* node:crypto secret KeyObject (scr_lib.c) */
-  SCR_DYNH_DIR,            /* fs.Dir (scr_lib.c) */
-  SCR_DYNH_CIPHER,         /* node:crypto Cipheriv (scr_cipher.c) */
-  SCR_DYNH_DECIPHER,       /* node:crypto Decipheriv (scr_cipher.c) */
-  SCR_DYNH_FOREIGN, /* embedder-owned live foreign object */
-  SCR_DYNH_COUNT,
-=======
 #define SCR_DYNH_ENUM_ROW(name, value) SCR_DYNH_##name = value,
   SCR_DYNH_TAGS(SCR_DYNH_ENUM_ROW)
 #undef SCR_DYNH_ENUM_ROW
->>>>>>> theirs
 } ScrDynHandleTag;
 
 #define SCR_DYNH_RANGE_ROW(name, value) \
@@ -1257,6 +1206,8 @@ ScrDyn *scr_dyn_destructure_rest(const ScrDyn *src, const ScrStr *msg);
  * `spell` is the compile-time not-iterable wording, or NULL. +1, or NULL
  * with the error pending. */
 ScrDyn *scr_dyn_iter_take(const ScrDyn *src, size_t n, const char *spell);
+/* Collect every value through GetIterator, including custom array iterators. */
+ScrDyn *scr_dyn_iter_collect(const ScrDyn *src);
 /* True for typed capsules that iterate through the protocol (a compiled
  * synchronous generator) rather than through their materialized view. */
 bool scr_dyn_iterates_by_protocol(const ScrDyn *value);
@@ -1795,7 +1746,6 @@ typedef struct ScrDynHandleOps {
   ScrDyn *(*rejected)(void);
 } ScrDynHandleOps;
 
-<<<<<<< ours
 /* Optional live-object interop surface for SCR_DYNH_FOREIGN only. The base
  * layout stays unchanged for precompiled native handle owners. Values from
  * get/keys/prototype are owned; stored values are borrowed.
@@ -1815,7 +1765,6 @@ typedef struct ScrDynForeignOps {
 } ScrDynForeignOps;
 const ScrDynForeignOps *scr_dyn_foreign_ops_of(const ScrDyn *value);
 
-=======
 /* The operations a Transform handle gives the stream unit (scr_stream.c):
  * the slot where the handle keeps its stream (+1) with the stream's
  * release, update() and final() over bytes (+1 Buffer, or NULL with the
@@ -1855,7 +1804,6 @@ typedef struct ScrDynHandleTransfer {
   ScrDyn *(*adopt)(void *payload);
   void (*drop)(void *payload);
 } ScrDynHandleTransfer;
->>>>>>> theirs
 ScrDyn *scr_dyn_native_handle_iterator(ScrDyn *source, unsigned selection);
 
 /* ── promises in the checked-dynamic tree (SCR_DYN_PROMISE) ────────────────────────────

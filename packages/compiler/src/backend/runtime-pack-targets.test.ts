@@ -52,11 +52,7 @@ async function fixture(target: NativeTargetSpec, workers = false) {
       object_format: target.objectFormat,
       minimum_os: target.minimumOs,
     },
-<<<<<<< ours
-    runtime_abi: { version: 1, marker: "scr_zshannon_runtime_abi_v1" },
-=======
-    runtime_abi: { version: 45, marker: "scr_runtime_abi_v45" },
->>>>>>> theirs
+    runtime_abi: { version: 45, marker: "scr_zshannon_runtime_abi_v45" },
     compiler: { command: "fixture", identity: "fixture", target: target.llvmTriple },
     macros: { executable: [], excluded: ["SCR_LIB"], sanitizer: "external-toolchain-required" },
     flavors: {

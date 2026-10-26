@@ -117,7 +117,7 @@ function captureModule(): IrModule {
     },
   ];
   return {
-    irVersion: 16,
+    irVersion: 17,
     sourceFile: loc.file,
     entry: "main",
     functions,

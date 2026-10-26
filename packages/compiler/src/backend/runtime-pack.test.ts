@@ -129,11 +129,7 @@ async function fixture(target: NativeTargetSpec = MACOS_ARM64_TARGET) {
       object_format: target.objectFormat,
       minimum_os: target.minimumOs,
     },
-<<<<<<< ours
-    runtime_abi: { version: 1, marker: "scr_zshannon_runtime_abi_v1" },
-=======
-    runtime_abi: { version: 45, marker: "scr_runtime_abi_v45" },
->>>>>>> theirs
+    runtime_abi: { version: 45, marker: "scr_zshannon_runtime_abi_v45" },
     compiler: {
       command: "clang",
       identity: "fixture clang",
@@ -723,7 +719,7 @@ test("upstream ownership ABI cannot satisfy the fork runtime contract", async ()
   expect(() =>
     parseRuntimePackManifest({
       ...manifest,
-      runtime_abi: { version: 22, marker: "scr_runtime_abi_v22" },
+      runtime_abi: { version: 45, marker: "scr_runtime_abi_v45" },
     }),
   ).toThrow(RuntimePackError);
 });

@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 
 const exec = promisify(execFile);
 const program = join(import.meta.dirname, "../corpus/4637-contract-program-lifetime-workers.ts");

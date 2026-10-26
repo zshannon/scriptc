@@ -2309,6 +2309,7 @@ static ScrStr *scr_turkic_case(const ScrStr *s, bool upper) {
 
 ScrStr *scr_str_locale_case(const ScrStr *s, ScrDyn *locales, bool upper) {
   ScrDyn *owned = NULL;
+  ScrDyn *selected = NULL;
   if (locales->kind == SCR_DYN_TYPED_REF) {
     owned = scr_dyn_typed_ref_materialize(locales);
     if (!owned) return NULL;
@@ -2331,19 +2332,25 @@ ScrStr *scr_str_locale_case(const ScrStr *s, ScrDyn *locales, bool upper) {
   case SCR_DYN_STR:
     tag = locales;
     break;
-  case SCR_DYN_ARR:
-    if (locales->v.arr.len == 0) break;
-    if (locales->v.arr.presence && !locales->v.arr.presence[0]) {
-      static const char msg[] = "Language ID should be string or object.";
-      scr_throw_error_msg(SCR_ERR_TYPE, msg, sizeof msg - 1);
-      scr_dyn_release(owned);
-      return NULL;
+  case SCR_DYN_ARR: {
+    size_t length = locales->v.arr.len;
+    for (size_t index = 0; index < length; index++) {
+      ScrDyn *key = scr_dyn_new_num((double)index);
+      bool present = scr_dyn_has_key_computed(locales, key);
+      scr_dyn_release(key);
+      if (scr_exc_pending()) { scr_dyn_release(owned); return NULL; }
+      if (!present) continue;
+      selected = scr_dyn_index_get(locales, (double)index);
+      if (!selected) { scr_dyn_release(owned); return NULL; }
+      break;
     }
-    tag = locales->v.arr.items[0];
+    tag = selected;
+    if (!tag) break;
     if (tag->kind != SCR_DYN_STR) {
       bool primitive = tag->kind == SCR_DYN_UNDEF || tag->kind == SCR_DYN_NULL ||
                        tag->kind == SCR_DYN_NUM || tag->kind == SCR_DYN_BOOL ||
                        tag->kind == SCR_DYN_BIGINT || tag->kind == SCR_DYN_SYMBOL;
+      scr_dyn_release(selected);
       scr_dyn_release(owned);
       if (!primitive) return scr_locale_case_unsupported(upper);
       static const char msg[] = "Language ID should be string or object.";
@@ -2351,6 +2358,7 @@ ScrStr *scr_str_locale_case(const ScrStr *s, ScrDyn *locales, bool upper) {
       return NULL;
     }
     break;
+  }
   default:
     scr_dyn_release(owned);
     return scr_locale_case_unsupported(upper);
@@ -2358,10 +2366,12 @@ ScrStr *scr_str_locale_case(const ScrStr *s, ScrDyn *locales, bool upper) {
   if (tag) {
     rules = scr_locale_case_rules(tag->v.str->data, tag->v.str->len);
     if (rules < 0 || rules == 2 || (rules == 3 && upper)) {
+      scr_dyn_release(selected);
       scr_dyn_release(owned);
       return scr_locale_case_unsupported(upper);
     }
   }
+  scr_dyn_release(selected);
   scr_dyn_release(owned);
   if (rules == 1) return scr_turkic_case(s, upper);
   return scr_str_case_conv(s, upper ? 0 : 1);

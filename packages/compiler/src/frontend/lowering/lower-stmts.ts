@@ -1343,13 +1343,6 @@ function varBindingType(lowerer: Lowerer, nameNode: ts.Identifier): IrType | nul
   )
     return DYN;
   let type = lowerer.mapTypeOf(lowerer.typeOf(nameNode));
-<<<<<<< ours
-=======
-  if (type?.kind === "record" && isJsSourceFile(ts.getSourceFileOfNode(nameNode))) {
-    const shape = lowerer.shapes.get(type.shapeId);
-    if (shape && shape.fields.length === 0 && !shape.indexValue && !shape.tuple) type = DYN;
-  }
->>>>>>> theirs
   if (!type) type = dynFallbackType(lowerer, nameNode, lowerer.typeOf(nameNode));
   if (ts.isVariableDeclaration(nameNode.parent) && nameNode.parent.name === nameNode) {
     type = staticImportNamespaceType(lowerer, nameNode.parent.initializer) ?? type;
@@ -6520,7 +6513,7 @@ function lowerVariableInitializer(
  * hoisting and ordinary expression lowering can settle different layouts. */
 export function jsOpenBindingType(lowerer: Lowerer, node: ts.Node, type: IrType): IrType {
   type = jsOpenObjectType(node, type, lowerer.shapes, lowerer.unions);
-  if (type.kind === "dyn" || !isJsSourceFile(node.getSourceFile())) return type;
+  if (type.kind === "dyn" || !isJsSourceFile(ts.getSourceFileOfNode(node))) return type;
   const identifier = ts.isIdentifier(node)
     ? node
     : ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
@@ -6528,7 +6521,7 @@ export function jsOpenBindingType(lowerer: Lowerer, node: ts.Node, type: IrType)
       : null;
   if (!identifier) return type;
   const symbol = lowerer.resolveValueSymbol(identifier);
-  const declaration = symbol ? lowerer.checker.valueDeclarationOf(symbol) : undefined;
+  const declaration = symbol?.valueDeclaration;
   if (!declaration || !ts.isVariableDeclaration(declaration)) return type;
   if (lowerer.typeParamResolver(lowerer.typeOf(declaration.name)) !== null) return type;
   if (jsBindingHasOpenWrites(lowerer, declaration)) return DYN;
@@ -6696,18 +6689,6 @@ function jsBindingWrites(
     writes = indexed;
     lowerer.jsBindingWritesByOwner.set(owner, writes);
   }
-<<<<<<< ours
-  const declaredType = lowerer.typeOf(decl.name);
-  return (writes.get(decl.name.text) ?? []).some((node) => {
-    if (lowerer.resolveValueSymbol(node.left as ts.Identifier) !== symbol) return false;
-    const assignedType = lowerer.typeOf(node.right);
-    return (
-      (assignedType.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0 ||
-      (node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-        !lowerer.checker.isTypeAssignableTo(assignedType, declaredType))
-    );
-  });
-=======
   return (writes.get(name.text) ?? []).filter(
     (node) => lowerer.resolveValueSymbol(node.left as ts.Identifier) === symbol,
   );
@@ -6824,7 +6805,6 @@ function mayBeNullish(node: ts.Expression): boolean {
     if (op === ts.SyntaxKind.CommaToken) return mayBeNullish(node.right);
   }
   return false;
->>>>>>> theirs
 }
 
 function immediatelyGuardedAbsenceProbe(lowerer: Lowerer, decl: ts.VariableDeclaration): boolean {

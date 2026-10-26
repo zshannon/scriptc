@@ -6,23 +6,15 @@ All notable changes to scriptc will be documented in this file.
 
 <!-- release:start -->
 
-<<<<<<< ours
-## 0.3.7
+## 0.4.5
 
 ### zshannon fork
 
-Based on the exact upstream v0.3.6 release commit `fab1a29b333047bf799f6ff498100176c00bb7b7`.
+Based on the exact upstream v0.4.5 release commit `4ee477d11eb9a71f0a018e5f5bed171a954fc2f7`.
 
-- Restore pooled allocation for thread-instance libraries while retaining thread isolation, sanitizer behavior, and safe thread-exit cleanup.
-- Index JavaScriptCore wrapper aliases by native identity so cache misses do not scan unrelated live values.
-- Preserve own enumerable properties when spreading or assigning foreign objects, including getter/setter ordering and exceptions.
-- Cover concurrent library sessions, late host releases, repeated thread exits, and wrapper identity/lifetime behavior in fork CI.
-- Keep the full upstream CI matrix available by manual dispatch; automatic checks use the fork's self-hosted Apple-focused workflow.
-
-<!-- release:end -->
-
-=======
-## 0.4.5
+- Import upstream compiler/runtime improvements while preserving iOS targets, thread-instance library allocation, native dyn callbacks, disposal, and JavaScriptCore lifetime support.
+- Retain fork-scoped packages and a distinct ABI marker for the updated runtime layout.
+- Correct sparse locale selection and multi-value WebAssembly import result validation.
 
 ### Highlights
 
@@ -389,7 +381,6 @@ Based on the exact upstream v0.3.6 release commit `fab1a29b333047bf799f6ff498100
 - **Sockets:** `'data'` listeners get strings after `setEncoding`, socket and stream chunks are Buffers, and an idle pooled http socket that receives data is destroyed.
 - **Diagnostic code frames window long source lines.**
 - **npm crashes, internal errors and false TDZ errors** found while compiling popular packages are fixed.
->>>>>>> theirs
 
 ## 0.3.6
 
@@ -432,10 +423,7 @@ Based on the exact upstream v0.3.6 release commit `fab1a29b333047bf799f6ff498100
 - **`Object.setPrototypeOf` returns primitive receivers,** and `createHmac` without a key throws Node's error.
 - **Boxed records that hold an async function link the dynamic promise unit.**
 
-<<<<<<< ours
 
-=======
->>>>>>> theirs
 ## 0.3.5
 
 ### Features

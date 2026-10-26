@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect, test } from "vitest";
-import { compile } from "@scriptc/compiler";
+import { compile } from "@zshannon/scriptc-compiler";
 
 const execFileAsync = promisify(execFile);
 const fixture = join(import.meta.dirname, "../fixtures/esm-path-globals");

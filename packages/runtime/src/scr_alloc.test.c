@@ -1128,26 +1128,23 @@ int main(void) {
 #if SCR_SMALL_ALLOC && defined(__linux__) && defined(__GLIBC__)
   check_heap_huge_pages();
 #endif
-<<<<<<< ours
-#if (defined(SCR_WORKERS) || defined(SCR_THREAD_INSTANCES)) && SCR_SMALL_ALLOC
-  check_threads();
-#ifdef SCR_WORKERS
-=======
 #if defined(__linux__) && SCR_SMALL_ALLOC
   check_program_lifetime_region();
 #ifdef SCR_WORKERS
   check_program_lifetime_region_threads();
 #endif
 #endif
-#if defined(SCR_WORKERS) && SCR_SMALL_ALLOC
+#if (defined(SCR_WORKERS) || defined(SCR_THREAD_INSTANCES)) && SCR_SMALL_ALLOC
+#ifdef SCR_WORKERS
   /* A short discard delay, which stays at its start until check_discard_delay_grows. */
   setenv("SCR_SA_DISCARD_DELAY_MS", "100", 1);
   setenv("SCR_SA_DISCARD_DELAY_MAX_MS", "0", 1);
+#endif
   check_threads();
+#ifdef SCR_WORKERS
 #if defined(__linux__) && defined(__GLIBC__)
   check_thread_heap_huge_pages();
 #endif
->>>>>>> theirs
 #ifdef __linux__
   check_trim();
   check_release_frontiers();

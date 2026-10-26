@@ -30,7 +30,7 @@ function declarationPath(name: string): string {
  * distribution ships them beside its declarations. */
 export function packageShimRoot(): string {
   return installedDeclarationRoot === null
-    ? join(dirname(require.resolve("@scriptc/compiler/scriptc.d.ts")), "..", "shims")
+    ? join(dirname(require.resolve("@zshannon/scriptc-compiler/scriptc.d.ts")), "..", "shims")
     : join(installedDeclarationRoot, "shims");
 }
 

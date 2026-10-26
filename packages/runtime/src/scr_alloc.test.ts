@@ -15,22 +15,6 @@ const exec = promisify(execFile);
 // last build runs with glibc's memory tagging tunable set, which turns the
 // thread-heap huge-page policy off.
 test.each([
-<<<<<<< ours
-  ["size-class", ["-fsanitize=undefined"]],
-  ["system", ["-fsanitize=address,undefined"]],
-  ["size-class workers", ["-fsanitize=undefined", "-DSCR_WORKERS", "-pthread"]],
-  ["size-class workers", ["-fsanitize=thread", "-DSCR_WORKERS", "-pthread"]],
-  [
-    "size-class libraries",
-    ["-fsanitize=undefined", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
-  ],
-  [
-    "size-class libraries",
-    ["-fsanitize=thread", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
-  ],
-  ["system", ["-fsanitize=address,undefined", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"]],
-])("small-object allocator contracts hold (%s, %j)", async (mode, sanitize) => {
-=======
   ["size-class", ["-fsanitize=undefined"], {}],
   ["system", ["-fsanitize=address,undefined"], {}],
   ["size-class workers", ["-fsanitize=undefined", "-DSCR_WORKERS", "-pthread"], {}],
@@ -40,8 +24,22 @@ test.each([
     ["-fsanitize=undefined", "-DSCR_WORKERS", "-pthread"],
     { GLIBC_TUNABLES: "glibc.mem.tagging=3" },
   ],
+  [
+    "size-class libraries",
+    ["-fsanitize=undefined", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
+    {},
+  ],
+  [
+    "size-class libraries",
+    ["-fsanitize=thread", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
+    {},
+  ],
+  [
+    "system",
+    ["-fsanitize=address,undefined", "-DSCR_LIB", "-DSCR_THREAD_INSTANCES", "-pthread"],
+    {},
+  ],
 ])("small-object allocator contracts hold (%s, %j, %j)", async (mode, sanitize, extraEnv) => {
->>>>>>> theirs
   const scratch = await mkdtemp(join(tmpdir(), "scriptc-alloc-"));
   try {
     const binary = join(scratch, "alloc");

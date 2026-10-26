@@ -316,18 +316,12 @@ const LIB_CALLBACK_PARAM_CLASSES = [
   "f64",
   "bool",
   "string",
-<<<<<<< ours
-=======
   "cstring",
->>>>>>> theirs
   "bytes",
   "u8",
   "u32",
   "i32",
-<<<<<<< ours
   "dyn",
-=======
->>>>>>> theirs
 ] as const;
 /** Marshalling classes legal in a CALLBACK RETURN position (inbound: host
  * → compiled code). Scalars only — every conversion to f64 is exact by

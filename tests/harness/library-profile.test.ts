@@ -12,12 +12,8 @@ import {
   loadLibraryProfile,
   profileRemediation,
   profileTeaching,
-<<<<<<< ours
-} from "@zshannon/scriptc-compiler";
-=======
   resolveLibraryFences,
-} from "@scriptc/compiler";
->>>>>>> theirs
+} from "@zshannon/scriptc-compiler";
 
 const dir = mkdtempSync(join(tmpdir(), "scriptc-lib-profile-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));

@@ -51,17 +51,23 @@ test.each(["js", "ts"])(
 );
 
 test.each([
-  `var shared = { value: 1 }; shared.extra = () => 7; return shared.extra();`,
-  `var shared = { value: 1 }; var alias = shared; alias.extra = () => 7; return alias.extra();`,
-  `var shared = 1; shared = "changed"; return shared.length;`,
-  `var shared = 1; function replace(value) { shared = value; } replace("changed"); return shared.length;`,
-])("hoisted JavaScript writes keep the inferred binding open: %s", async (body) => {
+  [`var shared = { value: 1 }; shared.extra = () => 7; return shared.extra();`, "dyn"],
+  [
+    `var shared = { value: 1 }; var alias = shared; alias.extra = () => 7; return alias.extra();`,
+    "dyn",
+  ],
+  [`var shared = 1; shared = "changed"; return shared.length;`, "jsval"],
+  [
+    `var shared = 1; function replace(value) { shared = value; } replace("changed"); return shared.length;`,
+    "dyn",
+  ],
+])("hoisted JavaScript writes keep the inferred binding open: %s", async (body, kind) => {
   const mod = await compileSource(
     `function initialize() { ${body} } console.log(initialize());`,
     "js",
   );
   const fn = mod.functions.find((fn) => fn.name === "initialize");
-  expect(fn!.locals.find((local) => local.name === "shared")?.type).toEqual({ kind: "dyn" });
+  expect(fn!.locals.find((local) => local.name === "shared")?.type).toEqual({ kind });
 });
 
 test("library initialization executes open-object writes and higher-order reads", async () => {

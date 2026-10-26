@@ -99,6 +99,8 @@ jobs:
           packages/compiler/test/library-thread-allocator.test.ts
       - name: JavaScriptCore lifetime tests
         run: node scripts/test-jsc.mjs
+      - name: Runtime review regressions
+        run: pnpm test tests/harness/differential.test.ts -t 'string-locale-sparse|webassembly-import-multi-results'
 
   checks:
     name: Fork checks

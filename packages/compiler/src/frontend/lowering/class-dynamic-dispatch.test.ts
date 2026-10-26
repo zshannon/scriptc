@@ -479,7 +479,6 @@ test("normalizes base capsules before dispatching each derived member once", () 
   });
 });
 
-<<<<<<< ours
 test.each([false, true])(
   "named reads share a direct ordinary fallback (optional=%s)",
   (optional) => {
@@ -606,7 +605,8 @@ test("named selector keeps native lazy bags owned and preserves the accessor rec
   expect(text).toContain('"fn":"dyn.bagGet"');
   expect(text).toContain('"localId":"p.0"');
   expect(selector.body.at(-1)).toMatchObject({ kind: "return", value: { kind: "dynKeyGet" } });
-=======
+});
+
 test("class branches read their exact class's bag, also for classes with subclasses", () => {
   const { lowerer, liftedFns } = context();
   const base = {
@@ -737,5 +737,4 @@ test("records a class's bag initializer only when all its class-table branches a
   ]);
   dispatch.finalize(lowerer);
   expect([...classBagInitializers.keys()]).toEqual(["Texture"]);
->>>>>>> theirs
 });

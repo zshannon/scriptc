@@ -2,13 +2,8 @@
  * of the link contract: a program object keeps this symbol undefined and the
  * matching runtime defines it, so incompatible manual links fail before the
  * program can start. */
-<<<<<<< ours
-export const RUNTIME_ABI_VERSION = 1 as const;
-export const RUNTIME_ABI_MARKER = "scr_zshannon_runtime_abi_v1" as const;
-=======
 export const RUNTIME_ABI_VERSION = 45 as const;
-export const RUNTIME_ABI_MARKER = "scr_runtime_abi_v45" as const;
->>>>>>> theirs
+export const RUNTIME_ABI_MARKER = "scr_zshannon_runtime_abi_v45" as const;
 
 /** Object consumption is useful today, but the complete scr_* surface may
  * still change before 1.0. The versioned marker prevents accidental mixing;

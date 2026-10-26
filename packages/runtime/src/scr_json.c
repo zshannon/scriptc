@@ -6333,16 +6333,11 @@ ScrDyn *scr_dyn_new_handle(void *h, ScrDynHandleTag tag) {
   ScrDyn *d = scr_dyn_alloc(SCR_DYN_HANDLE);
   d->v.handle.ptr = scr_dyn_handle_ops(tag)->retain(h);
   d->v.handle.tag = tag;
-<<<<<<< ours
   d->v.handle.traced =
       (tag == SCR_DYNH_FOREIGN && ((const ScrDynForeignOps *)scr_dyn_handle_ops(tag))->traced) ||
       tag == SCR_DYNH_WEAK_MAP || tag == SCR_DYNH_WEAK_SET ||
-      tag == SCR_DYNH_WORKER || tag == SCR_DYNH_MESSAGE_PORT ||
-=======
-  d->v.handle.traced = tag == SCR_DYNH_WEAK_MAP || tag == SCR_DYNH_WEAK_SET ||
       tag == SCR_DYNH_WORKER || tag == SCR_DYNH_MESSAGE_PORT || tag == SCR_DYNH_DISPOSABLE_STACK ||
       tag == SCR_DYNH_CIPHER || tag == SCR_DYNH_DECIPHER ||
->>>>>>> theirs
       ((tag == SCR_DYNH_SET || tag == SCR_DYNH_MAP) &&
        ((ScrMap *)h)->traced != 0);
   return d;
@@ -6526,14 +6521,9 @@ static ScrDyn *scr_dynh_method_value(ScrDynHandleTag tag, const ScrDynHandleOps 
 }
 
 ScrDyn *scr_dyn_handle_key_get(const ScrDyn *d, const ScrStr *k) {
-<<<<<<< ours
-  const ScrDynHandleOps *ops = scr_dyn_handle_ops(d->v.handle.tag);
-  ScrDyn *r = ops->get ? ops->get(d->v.handle.ptr, k->data, k->len) : NULL;
-=======
   ScrDynHandleTag tag = d->v.handle.tag;
   const ScrDynHandleOps *ops = scr_dyn_handle_ops(tag);
-  ScrDyn *r = ops->get(d->v.handle.ptr, k->data, k->len);
->>>>>>> theirs
+  ScrDyn *r = ops->get ? ops->get(d->v.handle.ptr, k->data, k->len) : NULL;
   if (scr_exc_pending()) {
     scr_dyn_release(r);
     return NULL;
@@ -13552,7 +13542,6 @@ void scr_dyn_obj_delete_field(ScrDyn *obj, const ScrStr *key) {
  * arrays, typed references and handles keep their explicit boundary;
  * deleting from a materialized snapshot would lose the mutation. */
 void scr_dyn_key_delete(ScrDyn *recv, const ScrStr *key, bool strict) {
-<<<<<<< ours
   const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(recv);
   if (foreign && foreign->delete_property) {
     bool deleted = foreign->delete_property(recv->v.handle.ptr, key);
@@ -13562,10 +13551,7 @@ void scr_dyn_key_delete(ScrDyn *recv, const ScrStr *key, bool strict) {
     }
     return;
   }
-  if (scr_dyn_class_reflection_fence(recv)) return;
-=======
   if (scr_dyn_class_reflection_fence(recv) || scr_dyn_error_prototype_fence(recv)) return;
->>>>>>> theirs
   if (recv->kind == SCR_DYN_PROXY) { scr_dyn_proxy_delete(recv, key); return; }
   if (recv->kind == SCR_DYN_TYPED_REF && recv->v.typed_ref.commit &&
       (!strncmp(recv->v.typed_ref.type_key, "record:", 7) ||
@@ -18749,6 +18735,10 @@ ScrDyn *scr_dyn_destructure_rest(const ScrDyn *src, const ScrStr *msg) {
     (src->kind == SCR_DYN_HANDLE && scr_dyn_handle_ops_of(src)->iter_pack) ||
     (src->kind == SCR_DYN_TYPED_REF && !scr_dyn_iterates_by_protocol(src));
   return packs ? scr_dyn_iter_pack(src, msg) : scr_dyn_iter_steps(src, msg, 0, true);
+}
+
+ScrDyn *scr_dyn_iter_collect(const ScrDyn *src) {
+  return scr_dyn_iter_steps(src, NULL, 0, true);
 }
 
 ScrDyn *scr_dyn_iter_take(const ScrDyn *src, size_t n, const char *spell) {

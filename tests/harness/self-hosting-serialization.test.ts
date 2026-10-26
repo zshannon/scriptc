@@ -12,12 +12,8 @@ import {
   emitLlvmModule,
   serializeModule,
   validateModule,
-<<<<<<< ours
 } from "@zshannon/scriptc-compiler";
-=======
-} from "@scriptc/compiler";
 import { moduleLinkFeatures } from "./link-features.js";
->>>>>>> theirs
 import { IR_VERSION } from "../../packages/compiler/src/ir/serialize.js";
 import { F64, VOID, type IrModule } from "../../packages/compiler/src/ir/ir.js";
 import { numLit } from "../../packages/compiler/src/ir/build.js";

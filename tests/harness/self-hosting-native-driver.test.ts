@@ -380,7 +380,7 @@ test(
           );
           expect(missing.status).toBe(1);
           expect(missing.stderr.toString()).toContain(
-            "error SC3003: runtime pack for wasm32-wasi is not installed; install @scriptc/runtime-wasm32-wasi@",
+            "error SC3003: runtime pack for wasm32-wasi is not installed; install @zshannon/scriptc-runtime-wasm32-wasi@",
           );
           expect(missing.stderr.toString()).toContain(
             "hint: scriptc includes the runtime pack for its own platform only",

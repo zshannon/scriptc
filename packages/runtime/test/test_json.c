@@ -887,13 +887,10 @@ int main(void) {
   test_class_values();
   scr_init();
   test_primitive_owners();
-<<<<<<< ours
   test_foreign_optional_callbacks();
   test_foreign_copy_properties();
   test_foreign_delete();
-=======
   test_copy_property_descriptors();
->>>>>>> theirs
 
   /* ── primitives ─────────────────────────────────────────────────── */
   ScrDyn *d = parse_ok("null", "parse null");

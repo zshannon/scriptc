@@ -1413,13 +1413,8 @@ export interface IrLibCallback {
   name: string;
   /** The runtime channel slot (profile declaration order). */
   slot: number;
-<<<<<<< ours
-  params: ("f64" | "bool" | "string" | "bytes" | "u8" | "u32" | "i32" | "dyn")[];
+  params: ("f64" | "bool" | "string" | "cstring" | "bytes" | "u8" | "u32" | "i32" | "dyn")[];
   returns: "f64" | "bool" | "u8" | "u32" | "i32" | "i64" | "u64" | "pointer" | "void" | "dyn";
-=======
-  params: ("f64" | "bool" | "string" | "cstring" | "bytes" | "u8" | "u32" | "i32")[];
-  returns: "f64" | "bool" | "u8" | "u32" | "i32" | "i64" | "u64" | "pointer" | "void";
->>>>>>> theirs
   /** The unregistered-call trap text (a DETECTED trap: plain bytes the
    * library funnel classifies SC4025 and assembles with the current
    * entry's symbol — unlike the SC4012 wrapper traps, the entry is only

@@ -1405,12 +1405,19 @@ void scr_wasm_import_call(void *hostp, int32_t index, const uint64_t *args, uint
       ok = scr_wasm_from_js(want[0], res, &results[0]);
       if (ok && want[0] == 'x' && results[0]) scr_wasm_keep((ScrDyn *)(uintptr_t)results[0]);
     } else if (nr > 1) {
+      ScrDyn *values = scr_dyn_iter_collect(res);
+      ok = values != NULL;
+      if (ok && values->v.arr.len != nr) {
+        static const char message[] = "multi-return length mismatch";
+        scr_throw_error_msg(SCR_ERR_TYPE, message, sizeof message - 1);
+        ok = false;
+      }
       for (size_t i = 0; ok && i < nr; i++) {
-        ScrDyn *item = scr_dyn_index_get(res, (double)i);
+        ScrDyn *item = values->v.arr.items[i];
         ok = item && scr_wasm_from_js(want[i], item, &results[i]);
         if (ok && want[i] == 'x' && results[i]) scr_wasm_keep((ScrDyn *)(uintptr_t)results[i]);
-        scr_dyn_release(item);
       }
+      scr_dyn_release(values);
     }
     scr_dyn_release(res);
   } else {

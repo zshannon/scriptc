@@ -1,11 +1,6 @@
 {
-<<<<<<< ours
   "name": "@zshannon/scriptc-compiler",
-  "version": "0.3.7",
-=======
-  "name": "@scriptc/compiler",
   "version": "0.4.5",
->>>>>>> theirs
   "description": "The scriptc compiler — TypeScript/JavaScript frontend, typed IR, LLVM backend",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",
@@ -44,12 +39,8 @@
     "build": "node node_modules/typescript/bin/tsc -p tsconfig.json"
   },
   "dependencies": {
-<<<<<<< ours
     "@zshannon/scriptc-runtime": "workspace:*",
-=======
-    "@scriptc/runtime": "workspace:*",
     "tsc-ts": "0.0.9",
->>>>>>> theirs
     "typescript": "7.0.2",
     "typescript5": "npm:typescript@5.9.3"
   },

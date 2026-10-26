@@ -661,8 +661,39 @@ function readSelectedBag(
   receiver: IrExpr,
   key: IrExpr,
   optional: boolean,
+  inheritedMethod: boolean,
   loc: SrcLoc,
 ): IrExpr {
+  const bagGet: IrExpr = {
+    kind: "libCall",
+    fn: "dyn.bagGet",
+    args: [bag, key, receiver],
+    type: DYN,
+    loc,
+  };
+  const instanceRead: IrExpr = inheritedMethod
+    ? {
+        kind: "ternary",
+        cond: { kind: "dynTest", test: "function", value: receiver, type: BOOL, loc },
+        then: bagGet,
+        else_: {
+          kind: "ternary",
+          cond: { kind: "libCall", fn: "dyn.hasKey", args: [bag, key], type: BOOL, loc },
+          then: bagGet,
+          else_: {
+            kind: "libCall",
+            fn: "dyn.builtinMethod",
+            args: [{ kind: "strLit", value: "Object", type: STRING, loc }, key],
+            type: DYN,
+            loc,
+          },
+          type: DYN,
+          loc,
+        },
+        type: DYN,
+        loc,
+      }
+    : bagGet;
   return {
     kind: "ternary",
     cond: { kind: "dynScalarEq", left: bag, right: receiver, type: BOOL, loc },
@@ -674,7 +705,7 @@ function readSelectedBag(
       type: DYN,
       loc,
     },
-    else_: { kind: "libCall", fn: "dyn.bagGet", args: [bag, key, receiver], type: DYN, loc },
+    else_: instanceRead,
     type: DYN,
     loc,
   };
@@ -1251,7 +1282,7 @@ export class ClassDynamicDispatch {
   >();
   private readonly readSelectors = new Map<
     string,
-    { helper: IrFunction; optional: boolean; statics: boolean }
+    { helper: IrFunction; optional: boolean; statics: boolean; inheritedMethod: boolean }
   >();
   private readonly computedClassHelpers = new Map<string, IrFunction>();
   private normalization: IrFunction | null = null;
@@ -2787,7 +2818,6 @@ export class ClassDynamicDispatch {
                 name: `p${i}`,
                 type: DYN,
               }));
-<<<<<<< ours
               const fallback: IrExpr = read
                 ? this.readProperty(
                     lowerer,
@@ -2795,86 +2825,7 @@ export class ClassDynamicDispatch {
                     read.key,
                     read.optional ?? false,
                     !["name", "length", "apply"].includes(name),
-=======
-              const instanceBag: IrExpr = read
-                ? this.readPropertyBagOrEmpty(lowerer, varRef("p.0", DYN, loc), loc)
-                : {
-                    kind: "call",
-                    callee: this.propertyBag!.name,
-                    args: [varRef("p.0", DYN, loc)],
-                    type: DYN,
-                    loc,
-                  };
-              const bag: IrExpr =
-                read && !["name", "length", "apply"].includes(name)
-                  ? {
-                      kind: "call",
-                      callee: this.constructorPropertyBag(lowerer, loc).name,
-                      args: [instanceBag],
-                      type: DYN,
-                      loc,
-                    }
-                  : instanceBag;
-              // A read compares the bag with the receiver and then reads it:
-              // evaluate it once, so each read retains the receiver once.
-              const bagRead = varRef("bag.0", DYN, loc);
-              const bagGet: IrExpr | null = read
-                ? {
-                    kind: "libCall",
-                    fn: "dyn.bagGet",
-                    args: [bagRead, read.key, varRef("p.0", DYN, loc)],
-                    type: DYN,
-                    loc,
-                  }
-                : null;
-              // A class instance whose class chain declares no member of an
-              // Object.prototype method's name (classes that do answer in
-              // their own branches) inherits it unless an own property
-              // shadows it; a class constructor's static bag reads as before.
-              const instanceRead: IrExpr | null =
-                read && INHERITED_OBJECT_METHODS.has(name)
-                  ? {
-                      kind: "ternary",
-                      cond: {
-                        kind: "dynTest",
-                        test: "function",
-                        value: varRef("p.0", DYN, loc),
-                        type: BOOL,
-                        loc,
-                      },
-                      then: bagGet!,
-                      else_: {
-                        kind: "ternary",
-                        cond: this.readBagHas(lowerer, "dyn.hasKey", bagRead, read.key, loc),
-                        then: bagGet!,
-                        else_: {
-                          kind: "libCall",
-                          fn: "dyn.builtinMethod",
-                          args: [{ kind: "strLit", value: "Object", type: STRING, loc }, read.key],
-                          type: DYN,
-                          loc,
-                        },
-                        type: DYN,
-                        loc,
-                      },
-                      type: DYN,
-                      loc,
-                    }
-                  : bagGet;
-              const fallback: IrExpr = read
-                ? {
-                    kind: "ternary",
-                    cond: {
-                      kind: "dynScalarEq",
-                      left: bagRead,
-                      right: varRef("p.0", DYN, loc),
-                      type: BOOL,
-                      loc,
-                    },
-                    then: { ...read, value: bagRead },
-                    else_: instanceRead!,
-                    type: DYN,
->>>>>>> theirs
+                    INHERITED_OBJECT_METHODS.has(name),
                     loc,
                   )
                 : {
@@ -2908,14 +2859,9 @@ export class ClassDynamicDispatch {
                       { kind: "exprStmt", expr: fallback, loc },
                       { kind: "return", value: null, loc },
                     ]
-<<<<<<< ours
-                  : [{ kind: "return", value: fallback, loc }],
-=======
                   : [
-                      { kind: "varDecl", localId: "bag.0", init: bag, loc },
                       {
                         kind: "return",
-                        // Primitives answer their wrapper constructors.
                         value:
                           name === "constructor"
                             ? primitiveConstructorOr(
@@ -2928,7 +2874,6 @@ export class ClassDynamicDispatch {
                         loc,
                       },
                     ],
->>>>>>> theirs
                 loc,
               };
               if (!write && name === "toString" && lowerer.classes.has("%Error")) {
@@ -4986,9 +4931,10 @@ export class ClassDynamicDispatch {
     key: IrExpr,
     optional: boolean,
     statics: boolean,
+    inheritedMethod: boolean,
     loc: SrcLoc,
   ): IrExpr {
-    const id = JSON.stringify([optional, statics]);
+    const id = JSON.stringify([optional, statics, inheritedMethod]);
     let selector = this.readSelectors.get(id);
     if (!selector) {
       const params = [
@@ -5023,6 +4969,7 @@ export class ClassDynamicDispatch {
               varRef("p.0", DYN, loc),
               varRef("p.key", STRING, loc),
               optional,
+              inheritedMethod,
               loc,
             ),
             loc,
@@ -5030,7 +4977,7 @@ export class ClassDynamicDispatch {
         ],
         loc,
       };
-      selector = { helper, optional, statics };
+      selector = { helper, optional, statics, inheritedMethod };
       this.readSelectors.set(id, selector);
       this.generated.add(helper);
       lowerer.liftedFns.push(helper);
@@ -5496,7 +5443,7 @@ export class ClassDynamicDispatch {
       });
       delete dispatch.plain;
     }
-    for (const { helper, optional, statics } of this.readSelectors.values()) {
+    for (const { helper, optional, statics, inheritedMethod } of this.readSelectors.values()) {
       if (!this.propertyBag) continue;
       const loc = helper.loc;
       const receiver = varRef("p.0", DYN, loc);
@@ -5526,7 +5473,14 @@ export class ClassDynamicDispatch {
             { kind: "varDecl", localId: id, init: value, loc },
             {
               kind: "return",
-              value: readSelectedBag(varRef(id, DYN, loc), receiver, key, optional, loc),
+              value: readSelectedBag(
+                varRef(id, DYN, loc),
+                receiver,
+                key,
+                optional,
+                inheritedMethod,
+                loc,
+              ),
               loc,
             },
           ],

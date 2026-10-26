@@ -623,15 +623,9 @@ export function finalizeClassMethodValues(lowerer: Lowerer, functions: IrFunctio
     // class captures it needs no class environment, so the detached copy
     // drops the (empty) capture list, which requires a receiver.
     const name = `%method.receiverless:${target.name}`;
-<<<<<<< ours
     const { classCaptures: _classCaptures, ...receiverless } = target;
     functions.push({
       ...receiverless,
-=======
-    const { classCaptures: _classCaptures, ...detached } = target;
-    functions.push({
-      ...detached,
->>>>>>> theirs
       name,
       params: target.params.slice(1),
       locals: target.locals.filter((local) => local.id !== thisParam.localId),

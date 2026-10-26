@@ -1,11 +1,6 @@
 {
-<<<<<<< ours
   "name": "@zshannon/scriptc-runtime-linux-arm64-musl",
-  "version": "0.3.7",
-=======
-  "name": "@scriptc/runtime-linux-arm64-musl",
   "version": "0.4.5",
->>>>>>> theirs
   "description": "Precompiled scriptc runtime pack for Linux arm64 musl",
   "license": "Apache-2.0",
   "homepage": "https://scriptc.dev",

@@ -148,11 +148,7 @@ static void scr_enable_utf8_console_output(void) {
 }
 #endif
 
-<<<<<<< ours
-void scr_zshannon_runtime_abi_v1(void) {}
-=======
-void scr_runtime_abi_v45(void) {}
->>>>>>> theirs
+void scr_zshannon_runtime_abi_v45(void) {}
 
 void scr_init(void) {
 #ifdef SCR_WORKERS
