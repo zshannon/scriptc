@@ -1,0 +1,6 @@
+{
+ "order": [
+  "<repo>/tests/corpus/webassembly-import-multi-results.mjs"
+ ],
+ "diags": []
+}

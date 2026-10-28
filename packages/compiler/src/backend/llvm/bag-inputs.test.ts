@@ -23,7 +23,7 @@ const read: IrFunction = {
 
 test("property bag reads borrow stable inputs and keep an owned result", () => {
   const mod: IrModule = {
-    irVersion: 16,
+    irVersion: 17,
     sourceFile: loc.file,
     entry: "main",
     functions: [{ name: "main", params: [], locals: [], returnType: VOID, body: [], loc }, read],
@@ -128,7 +128,7 @@ test("property bag inputs retain mutable globals, captures, and projections", ()
 
 function moduleFor(...functions: IrFunction[]): IrModule {
   return {
-    irVersion: 16,
+    irVersion: 17,
     sourceFile: loc.file,
     entry: "main",
     functions: [

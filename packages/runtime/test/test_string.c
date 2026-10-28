@@ -205,6 +205,38 @@ static void surrogate_asserts(void) {
       }
     }
   }
+  /* Scratch slices hold the materialized text. Only ASCII results of at
+   * least two units use the caller's buffer, marked as scratch. */
+  {
+    ScrStr *sources[] = {two, s, scr_str_new("GET /api/users 200", 18)};
+    const double marks[] = {-INFINITY, -7.5, -3, -0.5, -0.0, 0, 0.5, 1,
+                            2, 3.9, 5, 9, 40, INFINITY, NAN};
+    const size_t nmarks = sizeof marks / sizeof marks[0];
+    _Alignas(16) unsigned char buffer[96];
+    for (size_t k = 0; k < 3; k++) {
+      for (size_t a = 0; a < nmarks; a++) {
+        for (size_t b = 0; b < nmarks; b++) {
+          for (unsigned substring = 0; substring < 2; substring++) {
+            ScrStr *src = sources[k];
+            ScrStr *scratch = scr_str_slice_scratch(src, marks[a], marks[b], substring != 0,
+                                                    (ScrStr *)buffer, sizeof buffer);
+            ScrStr *copy = substring ? scr_str_substring(src, marks[a], marks[b])
+                                     : scr_str_slice(src, marks[a], marks[b]);
+            bool used = scratch == (ScrStr *)buffer;
+            bool expected = copy->len >= 2 && scr_bytes_all_ascii(copy->data, copy->len);
+            total++;
+            if (scratch->len != copy->len || memcmp(scratch->data, copy->data, copy->len) != 0 ||
+                used != expected || used != scr_str_is_scratch(scratch) ||
+                scr_str_utf16_len(scratch) != scr_str_utf16_len(copy))
+              failed++;
+            scr_str_release(scratch);
+            scr_str_release(copy);
+          }
+        }
+      }
+    }
+    scr_str_release(sources[2]);
+  }
   scr_str_release(two);
   scr_str_release(s);
 }
@@ -490,6 +522,48 @@ static void short_string_asserts(void) {
   scr_str_release(source);
 }
 
+/* A loop's publish converts a non-ASCII receiver before any read, while a
+ * lone read still walks bytes. ASCII receivers publish nothing. A loop
+ * that can read fewer than one unit per 16 bytes counts as one read. */
+static void scan_units_asserts(void) {
+  ScrStr *s = scr_str_new("a\xC3\xA9\xF0\x9F\x98\x80" "b", 8); /* a é 😀 b */
+  static const double codes[] = {97, 233, 0xD83D, 0xDE00, 98};
+  if (scr_str_char_code_at(s, 0) != 97 || scr_str_scan.s == s) failed++;
+  scr_str_scan_units_for(s, NAN, NAN);
+  if (scr_str_scan.s != s || scr_str_scan.n != 5) failed++;
+  for (size_t i = 0; i < 5; i++)
+    if (scr_str_scan.n == 5 && (scr_str_scan.units[i] != codes[i] ||
+                                scr_str_char_code_at(s, (double)i) != codes[i])) failed++;
+  if (!isnan(scr_str_char_code_at(s, 5))) failed++;
+  scr_str_scan_units_for(s, NAN, NAN); /* republishing keeps the same units */
+  const uint16_t *units = scr_str_scan.units;
+  scr_str_scan_units_for(s, 0, 1);
+  if (scr_str_scan.s != s || scr_str_scan.units != units) failed++;
+  ScrStr *ascii = scr_str_new("plain", 5);
+  scr_str_scan_units_for(ascii, NAN, NAN);
+  if (scr_str_scan.s != s) failed++;
+  scr_str_release(ascii);
+  scr_str_release(s);
+  if (scr_str_scan.s != NULL) failed++;
+  /* 200 units in 400 bytes: a loop over 25 indexes converts at once. */
+  char text[400];
+  for (size_t i = 0; i < sizeof text; i += 2) memcpy(text + i, "\xC3\xA9", 2);
+  ScrStr *wide = scr_str_new(text, sizeof text);
+  scr_str_scan_units_for(wide, 175, 200);
+  if (scr_str_scan.s != wide || scr_str_scan.n != 200 || scr_str_scan.units[199] != 233) failed++;
+  scr_str_release(wide);
+  /* A loop over 24 does not; each such loop counts as one read, so the
+   * 32nd converts (32 reads, one per 12.5 bytes). */
+  ScrStr *line = scr_str_new(text, sizeof text);
+  scr_str_scan_units_for(line, 24, 0);
+  if (scr_str_scan.s == line) failed++;
+  for (int i = 1; i < 31; i++) scr_str_scan_units_for(line, i, i + 1);
+  if (scr_str_scan.s == line) failed++;
+  scr_str_scan_units_for(line, 31, 32);
+  if (scr_str_scan.s != line || scr_str_scan.n != 200) failed++;
+  scr_str_release(line);
+  total++;
+}
 #ifdef SCR_SIDX_TEST
 static void sidx_fail(const char *what) {
   failed++;
@@ -1121,6 +1195,7 @@ int main(int argc, char **argv) {
   split_scratch_asserts();
   accumulation_asserts();
   short_string_asserts();
+  scan_units_asserts();
 #ifdef SCR_SIDX_TEST
   sparse_index_asserts();
   sparse_ascii_prefix_asserts();

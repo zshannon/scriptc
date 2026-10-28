@@ -158,7 +158,9 @@ test("an unchanged captured parameter is borrowed and boxed only where a closure
   const module = await lower(`${ITEM}
 function heavier(item: Item, limits: number[]): boolean {
   if (limits.length === 0) return false;
-  return limits.some((limit) => weigh(item) > limit);
+  // A closure value: a closure literal at the call would run as a loop.
+  const over = (limit: number): boolean => weigh(item) > limit;
+  return limits.some(over);
 }
 function replaced(item: Item, other: Item): number {
   const read = () => item.weight;
@@ -220,4 +222,30 @@ function describe(item: Item): string {
 console.log(describe(items[4]!));
 `);
   expect(signature(unproven, "describe")).toBe("describe(Item|undefined): string");
+});
+
+test("a type assertion keeps an unchecked read from widening its callee", async () => {
+  const module = await lower(`
+function hot(n: number): number {
+  return (n * 2) | 0;
+}
+function cold(xs: number[]): number {
+  let s = 0;
+  for (let i = 0; i < xs.length; i++) s = (s + hot(xs[i] as number)) | 0;
+  return s;
+}
+function drain(stack: number[]): number {
+  let s = 0;
+  while (stack.length > 0) s = (s + hot(stack.pop() as number)) | 0;
+  return s;
+}
+function lookup(m: Map<string, number>): number {
+  return hot(<number>m.get("a"));
+}
+console.log(cold([1, 2, 3]), drain([4, 5]), lookup(new Map([["a", 6]])));
+`);
+  expect(signature(module, "hot")).toBe("hot(f64): f64");
+  const llvm = emitLlvmModule(module);
+  for (const caller of ["cold", "drain", "lookup"])
+    expect(body(llvm, caller)).not.toContain("@scr_union_new");
 });
