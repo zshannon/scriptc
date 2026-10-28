@@ -666,6 +666,49 @@ static ScrDyn *foreign_keys(void *value, unsigned mode) {
   if (mode == 2) return scr_dyn_for_in_keys(value);
   return scr_dyn_obj_keys(value);
 }
+static unsigned foreign_has_calls;
+static bool foreign_probe_has(void *value, const ScrStr *key, unsigned mode) {
+  check(mode == 0, "foreign in checks inherited or own properties");
+  foreign_has_calls++;
+  if (str_is(key, "throws")) {
+    scr_throw_error_msg(SCR_ERR_RANGE, "has failed", 10);
+    return false;
+  }
+  return scr_dyn_in(value, key);
+}
+static void test_foreign_in(void) {
+  ScrDynForeignOps ops = {
+    .base = { .cls = "Foreign", .retain = scr_dyn_retain_v, .release = scr_dyn_release_v },
+    .has = foreign_probe_has,
+  };
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, &ops.base);
+  ScrDyn *object = scr_dyn_new_obj(), *prototype = scr_dyn_new_obj();
+  scr_dyn_obj_set(object, "own", 3, scr_dyn_new_num(1));
+  scr_dyn_obj_set(prototype, "inherited", 9, scr_dyn_new_num(2));
+  scr_dyn_release(scr_dyn_set_prototype(object, prototype));
+  scr_dyn_release(prototype);
+  ScrDyn *box = scr_dyn_new_handle(object, SCR_DYNH_FOREIGN);
+  const char *names[] = { "own", "inherited", "missing" };
+  foreign_has_calls = 0;
+  unsigned expected_calls = 0;
+  for (unsigned i = 0; i < 3; i++) {
+    ScrStr *name = S(names[i]);
+    check(scr_dyn_in(box, name) == (i < 2) && !scr_exc_pending(), "foreign in preserves property presence");
+    check(foreign_has_calls == ++expected_calls, "foreign in invokes the live host probe exactly once");
+    ScrDyn *key = scr_dyn_new_str(name);
+    check(scr_dyn_has_key_computed(box, key) == (i < 2) && !scr_exc_pending(), "computed foreign in preserves property presence");
+    check(foreign_has_calls == ++expected_calls, "computed foreign in invokes the live host probe exactly once");
+    scr_dyn_release(key); scr_str_release(name);
+  }
+  ScrStr *name = S("throws");
+  check(!scr_dyn_in(box, name) && scr_exc_pending(), "foreign in preserves the host exception");
+  ScrCaught *error = scr_exc_pending() ? scr_exc_take() : NULL;
+  check(error && error->kind == SCR_EXC_OBJ && str_is(((ScrError *)error->payload)->message, "has failed"),
+    "foreign in retains the original exception value");
+  scr_caught_release(error); scr_str_release(name);
+  scr_dyn_release(box); scr_dyn_release(object);
+  scr_dyn_handle_install(SCR_DYNH_FOREIGN, NULL);
+}
 static void test_foreign_optional_callbacks(void) {
   ScrDynForeignOps ops = {
     .base = { .cls = "Foreign", .retain = scr_dyn_retain_v, .release = scr_dyn_release_v },
@@ -683,6 +726,7 @@ static void test_foreign_optional_callbacks(void) {
   scr_dyn_release(value);
   check(!scr_dyn_ref_is_array(box) && !scr_exc_pending(), "foreign without array callback is not an array");
   check(!scr_dyn_has_key(box, name) && !scr_exc_pending(), "foreign without has callback has no modeled key");
+  check(!scr_dyn_in(box, name) && !scr_exc_pending(), "foreign in without has callback keeps the generic fallback");
   check(!scr_dyn_property_is_enumerable(box, name) && !scr_exc_pending(), "foreign without has callback is not enumerable");
   check(!scr_dyn_has_own(box, name) && scr_exc_pending(), "foreign own-property fallback refuses unsupported reflection");
   scr_exc_clear();
@@ -887,6 +931,7 @@ int main(void) {
   test_class_values();
   scr_init();
   test_primitive_owners();
+  test_foreign_in();
   test_foreign_optional_callbacks();
   test_foreign_copy_properties();
   test_foreign_delete();

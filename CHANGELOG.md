@@ -6,6 +6,16 @@ All notable changes to scriptc will be documented in this file.
 
 <!-- release:start -->
 
+## 0.4.6
+
+### zshannon fork
+
+Based on the upstream v0.4.5 import.
+
+- Preserve live foreign-object and Proxy `has` hooks for the `in` operator, including computed string keys, inherited properties and host exceptions.
+
+<!-- release:end -->
+
 ## 0.4.5
 
 ### zshannon fork
@@ -47,8 +57,6 @@ Based on the exact upstream v0.4.5 release commit `4ee477d11eb9a71f0a018e5f5bed1
   - Error messages: `JSON.parse` syntax errors use V8's messages and positions; `Object.getPrototypeOf` of an Error answers `Error.prototype`.
   - `util.inspect` of dynamic classes, functions and `%o` arguments, and `Symbol.toStringTag` fields and getters, match Node.
 - **npm packages:** more npm and CommonJS dependencies compile statically, including namespace-style packages with guarded declarations and `var` exports, and untyped Maps, Sets and arrays are typed from their uses.
-
-<!-- release:end -->
 
 ## 0.4.4
 
