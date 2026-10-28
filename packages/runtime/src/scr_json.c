@@ -6537,6 +6537,8 @@ ScrDyn *scr_dyn_handle_key_get(const ScrDyn *d, const ScrStr *k) {
 
 /* `key in handle`: the class's methods, and the properties its get models. */
 static bool scr_dyn_handle_in(const ScrDyn *d, const ScrStr *k) {
+  const ScrDynForeignOps *foreign = scr_dyn_foreign_ops_of(d);
+  if (foreign && foreign->has) return foreign->has(d->v.handle.ptr, k, 0);
   const ScrDynHandleOps *ops = scr_dyn_handle_ops(d->v.handle.tag);
   const ScrDynHandleMethod *methods = ops->invoke ? ops->methods : NULL;
   for (size_t i = 0; methods && methods[i].name; i++)
