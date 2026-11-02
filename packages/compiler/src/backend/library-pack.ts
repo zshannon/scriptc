@@ -56,6 +56,8 @@ export async function compilePackedLibrary(
     dgramDyn: false,
     textCodecDyn: false,
     watch: false,
+    watchFile: false,
+    fsBufferBrand: false,
     foreignFfi: false,
     nodeTest: false,
     tls: false,
@@ -166,6 +168,7 @@ export async function compilePackedLibrary(
           options.programPublicSymbols,
           stem,
           target.platform,
+          { inProcessElf: true },
         );
       } else {
         program = await emit(

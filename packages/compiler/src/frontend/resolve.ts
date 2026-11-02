@@ -24,6 +24,7 @@ import {
 } from "./npm-static.js";
 import {
   clearPackageShimCaches,
+  isUnloadedPackage,
   packageShimFor,
   throughBundledShimForwarder,
 } from "./package-shims.js";
@@ -37,9 +38,11 @@ import {
   trackedRealpath,
 } from "./input-tracker.js";
 import { isRelativeSpecifier, packageNameOfSpecifier } from "./workspace-registry.js";
+import { typePatchFileExists } from "./type-patches/layer.js";
 
 function isFile(path: string): boolean {
-  return trackedFileExists(path);
+  // A declaration entry a project type patch supplies (type-patches/layer.ts).
+  return trackedFileExists(path) || typePatchFileExists(path);
 }
 
 function isDirectory(path: string): boolean {
@@ -1024,6 +1027,9 @@ export function resolveWorkspaceSourceModule(
   ) {
     return null;
   }
+  // A workspace package the project marks never loaded (package-shims.ts)
+  // resolves like a missing one.
+  if (isUnloadedPackage(specifier)) return null;
   const source = resolveBareModule(fromFile, specifier, "runtime-source");
   if (
     source?.workspaceDir === undefined ||

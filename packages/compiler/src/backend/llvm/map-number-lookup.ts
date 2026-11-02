@@ -4,9 +4,10 @@
  * direct index in the runtime (scr_map.c). Reads go through the internal
  * sc_map_entry_f64 helper (emitter.ts helperDefs), which LLVM inlines: it
  * resolves directly indexed maps without a call and other maps through
- * the internal sc_map_entry_f64_hashed probe, which hashes the key as the
- * runtime does and defers to scr_map_entry_f64 only for wide bucket
- * tables. Both only read memory. The generated code then reads the entry's
+ * the internal sc_map_entry_f64_hashed probe (sc_map_entry_f64_hashed_int
+ * for a key with an integer view), which hashes the key as the runtime
+ * does and defers to scr_map_entry_f64 only for wide bucket tables. Both
+ * only read memory. The generated code then reads the entry's
  * value slot itself and retains a reference value with the value type's own
  * retain, which is the adapter the collection was constructed with.
  * String-keyed reads use the same entry contract through the internal
@@ -31,6 +32,7 @@
 import type { IrExpr, IrType } from "../../ir/ir.js";
 import type { LlValue, LlvmEmitterContext } from "./expr-context.js";
 import { exactInteger, widenInteger } from "./integer-values.js";
+import { LOOPS } from "./loop-state.js";
 import { mapKeyAccess } from "./shapes.js";
 
 export const NUMBER_MAP_ENTRY_DECL = "declare ptr @scr_map_entry_f64(ptr, double)";
@@ -54,19 +56,22 @@ export function noteNumberMapKey(host: LlvmEmitterContext, key: LlValue, expr: I
 
 /** The entry for `key`, or null when absent. Valid until the next mutation.
  * A key with an integer view (noteNumberMapKey) tests the direct index on
- * that integer instead of converting the double back. */
+ * that integer instead of converting the double back. A lookup inside a
+ * loop of a small function (LOOPS.inlinedLookups) calls the helpers' `.loop`
+ * flavor, which inlines the hashed probe. */
 export function emitNumberMapEntry(host: LlvmEmitterContext, map: string, key: string): string {
   host.declare(NUMBER_MAP_ENTRY_DECL);
   const entry = host.B.tmp();
+  const flavor = host.loopDepth > 0 && LOOPS.of(host).inlinedLookups ? ".loop" : "";
   const integer = host.numberMapKeyIntegers.get(key);
   if (integer) {
     const wide = widenInteger(host, integer);
     host.B.line(
-      `${entry} = call ptr @sc_map_entry_f64_int(ptr ${map}, i64 ${wide}, double ${key})`,
+      `${entry} = call ptr @sc_map_entry_f64_int${flavor}(ptr ${map}, i64 ${wide}, double ${key})`,
     );
     return entry;
   }
-  host.B.line(`${entry} = call ptr @sc_map_entry_f64(ptr ${map}, double ${key})`);
+  host.B.line(`${entry} = call ptr @sc_map_entry_f64${flavor}(ptr ${map}, double ${key})`);
   return entry;
 }
 

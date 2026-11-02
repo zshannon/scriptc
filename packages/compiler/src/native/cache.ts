@@ -168,10 +168,14 @@ export class NativeCache {
         "sanitizer",
         "executable",
         "kept",
+        "linker-job",
         "runtime-pack",
+        "helper",
         "binary",
         "dsym",
         "coverage",
+        "units",
+        "unit-files",
       ]) {
         const directory = join(this.root, family);
         let names: string[];

@@ -84,6 +84,9 @@ import {
   vendorBuildCacheRoot,
   tlsArchivePath,
   brotliArchivePath,
+  ensureIcuSources,
+  icuArchivePath,
+  ensureIcuArchive,
   lreObjectPaths,
   zlibObjectPaths,
   stageVendorInputs,
@@ -124,6 +127,10 @@ interface RuntimeUnitContext {
   zlibObjects: readonly string[];
   tlsArchive: string | null;
   brotliArchive: string | null;
+  icuArchive: string | null;
+  /** The include roots of the ICU headers scr_intl.c compiles against: the
+   * runtime pack's, or the fetched release's common/ and i18n/. */
+  icuIncludeDirs: readonly string[];
 }
 
 /** An optional runtime input: runtime sources compiled when `when` holds,
@@ -153,6 +160,16 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   ),
   unit((u) => u.opts.copying, "scr_copying.c"),
   unit((u) => u.opts.fileHandle, "scr_file_handle.c"),
+  // writeFile's `flag` option and the fs/promises twins; the copyFile mode
+  // argument is the SCR_FS_FLAGS build of scr_fs_cp.c.
+  unit((u) => u.opts.fsFlags === true, "scr_fs_flags.c"),
+  // string_decoder's checked-dynamic chunk forms, beside their typed twins.
+  unit((u) => u.opts.strdecDyn === true, "scr_bytes_strdec_dyn.c"),
+  // BigIntStats member reads (`statSync(p, { bigint: true })` integers and
+  // `*Ns`/`*Ms` members). Gated on the reads themselves (the bigstats
+  // feature), not on bigint: every bigint value or wasm conversion turns
+  // bigint on, and the linked getters would move their executable.
+  unit((u) => u.opts.bigstats === true, "scr_stats_bigint.c"),
   // win32 targets compile the libc-shim TU (stpcpy, arc4random_buf,
   // gmtime_r, strcasestr — the _WIN32 block in scr_runtime.h declares
   // them) and link advapi32 (the CSPRNG RtlGenRandom/SystemFunction036,
@@ -169,9 +186,10 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   // SCR_MUSL flag and this target-selected TU travel together.
   unit((u) => isMuslTarget(u.driver), "scr_musl.c"),
   // scr_glob.c (path.matchesGlob) compiles its segments through the
-  // regex unit and scr_idna.c (node:url's IDNA) normalizes through it,
-  // so both ride the same switch; section GC drops them from binaries
-  // that never use them.
+  // regex unit, scr_idna.c (node:url's IDNA) normalizes through it and
+  // scr_path_win32_relative.c lowercases through its case mapping, so all
+  // three ride the same switch; section GC drops them from binaries that
+  // never use them.
   unitArgs((u) =>
     u.regex
       ? [
@@ -180,23 +198,50 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
           u.rt(join(u.rtDir, "scr_regex.c")),
           u.rt(join(u.rtDir, "scr_glob.c")),
           u.rt(join(u.rtDir, "scr_idna.c")),
+          u.rt(join(u.rtDir, "scr_path_win32_relative.c")),
           ...u.lreObjects,
         ]
       : [],
   ),
   unit((u) => u.opts.assert || u.regex || u.opts.symbol, "scr_assert.c"),
   unit((u) => u.opts.inspect, "scr_inspect.c", "scr_console_native.c"),
-  unit((u) => u.opts.dynInvoke || u.opts.workers || u.nativeFetch, "scr_dyn_invoke.c"),
+  unit(
+    (u) => u.opts.dynInvoke || u.opts.workers || u.nativeFetch || u.opts.nodeIsland === true,
+    "scr_dyn_invoke.c",
+  ),
   // Buffer.prototype methods called on checked-dynamic values.
   unit((u) => u.opts.dynBuffer === true && u.opts.dynInvoke, "scr_bytes_dyn.c"),
   // Builtin functions read as values in JavaScript dependencies.
   unit((u) => u.opts.builtinValues === true, "scr_builtin_values.c"),
+  // A standard library prototype object read as a value in a JavaScript
+  // source: the dynamic tier's gated unit, whose work is JavaScript-only.
+  unit(
+    (u) => u.opts.stdlibPrototypeValue === true && u.opts.dynInvoke,
+    "scr_dyn_stdlib_prototype.c",
+  ),
+  // Array.prototype's generic algorithms over array-like receivers, and the
+  // Number/Boolean prototype objects as values: the dynamic tier's gated
+  // units, whose work is JavaScript-only.
+  unit((u) => u.opts.arrayLikeDispatch === true && u.opts.dynInvoke, "scr_dyn_array_like.c"),
+  unit(
+    (u) => u.opts.builtinPrototypeValue === true && u.opts.dynInvoke,
+    "scr_dyn_builtin_prototype.c",
+  ),
+  // createRequire's computed require and require.resolve.
+  unit((u) => u.opts.computedRequire === true, "scr_require.c"),
   unit((u) => u.opts.dc, "scr_dc.c"),
   unit((u) => u.opts.dynTier, "scr_js_value.c", "scr_js_object.c"),
-  unit((u) => u.opts.eventTarget || u.nativeFetch, "scr_event_target.c"),
+  unit(
+    (u) => u.opts.eventTarget || u.nativeFetch || u.opts.abortSignal === true,
+    "scr_event_target.c",
+  ),
   unit((u) => u.opts.wasm, "scr_wasm.c"),
   // Module namespace objects as checked-dynamic values.
   unit((u) => u.opts.moduleNamespace === true, "scr_module_namespace.c"),
+  // A module namespace as the frozen null-prototype object typed code sees.
+  unit((u) => u.opts.moduleNamespaceDyn === true, "scr_module_namespace_dyn.c"),
+  // Primitive wrapper objects (new String/Number/Boolean, Object(primitive)).
+  unit((u) => u.opts.primitiveWrapper === true, "scr_js_wrapper.c"),
   unit(
     (u) =>
       u.opts.dynAsync ||
@@ -204,7 +249,9 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
       u.opts.workers ||
       u.opts.dc ||
       u.opts.fileHandle ||
-      u.nativeFetch,
+      u.nativeFetch ||
+      // Island promises cross as dyn promise boxes (scr_node_island_handle.c).
+      u.opts.nodeIsland === true,
     "scr_async_dyn.c",
   ),
   // The performance timeline (every perf_hooks user-timing call selects
@@ -215,18 +262,13 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   // Blob and File (every blob.* call selects dynAsync, whose unit boxes
   // their reads as dyn promises).
   unit((u) => u.opts.dynAsync, "scr_blob.c"),
-  // The zlib UNIT (scr_zlib.c) gates on zlib.* IR use; the LINK (system
-  // libz on the default host-clang build, vendored objects on Zig builds)
-  // also serves the native fetch's gzip decoder — spread exactly once.
+  // The zlib UNIT (scr_zlib.c) gates on zlib.* IR use; the vendored zlib
+  // objects also serve the native fetch's gzip decoder — spread exactly once.
   unitArgs((u) =>
     u.opts.zlib
-      ? isZigDriver(u.driver)
-        ? ["-I", vendorZlibDir(), u.rt(join(u.rtDir, "scr_zlib.c")), ...u.zlibObjects]
-        : [u.rt(join(u.rtDir, "scr_zlib.c"))]
+      ? ["-I", vendorZlibDir(), u.rt(join(u.rtDir, "scr_zlib.c")), ...u.zlibObjects]
       : u.nativeFetch
-        ? isZigDriver(u.driver)
-          ? ["-I", vendorZlibDir(), ...u.zlibObjects]
-          : []
+        ? ["-I", vendorZlibDir(), ...u.zlibObjects]
         : [],
   ),
   // Brotli (scr_brotli.c) plugs into the zlib engine and links the
@@ -241,6 +283,20 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
         ]
       : [],
   ),
+  // Intl over ICU (scr_intl.c): ICU's C API only, at the default locale,
+  // reading its data file from beside the executable. The ICU headers come
+  // from the installed runtime pack beside its archive, or, when ICU is
+  // built from its fetched release, from that source tree (common/unicode
+  // for the core API, i18n/unicode for udat.h and unumberformatter.h).
+  unitArgs((u) =>
+    u.icuIncludeDirs.length === 0 || u.icuArchive === null
+      ? []
+      : [
+          ...u.icuIncludeDirs.flatMap((dir) => ["-I", dir]),
+          u.rt(join(u.rtDir, "scr_intl.c")),
+          u.icuArchive,
+        ],
+  ),
   unit((u) => u.opts.events, "scr_events.c", "scr_readline.c"),
   // readline's terminal mode: rl.terminal sets the regex unit it
   // measures with.
@@ -249,6 +305,12 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   // events.once with options registers through the emitter and
   // event-target units.
   unit((u) => u.opts.eventsOnceSignal === true, "scr_events_once_signal.c"),
+  unit((u) => u.opts.mime === true, "scr_mime.c"),
+  unit((u) => u.opts.largePages === true, "scr_text_pages.c"),
+  unit((u) => u.opts.webStreams === true, "scr_webstreams.c"),
+  unit((u) => u.opts.webStreams === true, "scr_dyn_handle_class.c"),
+  unit((u) => u.opts.abortSignal === true && !u.nativeFetch, "scr_abort.c"),
+  unit((u) => u.opts.utilTiming === true, "scr_util_timing.c"),
   // The checked-dynamic HANDLE support unit (listener gate + runtime
   // adapter closures): every referencing unit is one of the emitter or
   // net families (http implies net), so handle-free binaries keep
@@ -298,8 +360,11 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   unit((u) => u.opts.streamDyn === true, "scr_stream_dyn.c"),
   // Own properties JavaScript adds to children.
   unit((u) => u.opts.handleProps === true, "scr_dyn_handle_props.c"),
+  // ChildProcess listener removal (off/removeListener) and signalCode.
+  unit((u) => u.opts.childLifecycle === true, "scr_child_lifecycle.c"),
   // The declaration-typed boundary's adoption.
   unit((u) => u.opts.declAdopt === true, "scr_decl_adopt.c"),
+  unit((u) => u.opts.typeOrigins === true, "scr_type_origin.c"),
   // for await over checked-dynamic values.
   unit((u) => u.opts.dynForAwait === true, "scr_dyn_for_await.c"),
   // for await over checked-dynamic values that may hold native streams.
@@ -323,6 +388,9 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   unit((u) => u.opts.dgram && u.opts.dgramDyn, "scr_dgram_dyn.c"),
   unit((u) => u.opts.textCodecDyn, "scr_text_codec_dyn.c"),
   unit((u) => u.opts.watch, "scr_watch.c"),
+  // fs.watchFile's stat poller: its own gated unit (no loop hook — the
+  // re-armed timers are the liveness), linked only by programs that poll.
+  unit((u) => u.opts.watchFile, "scr_watch_file.c"),
   unit((u) => u.opts.foreignFfi, "scr_ffi_queue.c"),
   unit((u) => u.opts.nodeTest, "scr_test.c"),
   unit((u) => u.opts.webcrypto, "scr_webcrypto.c"),
@@ -362,6 +430,14 @@ const RUNTIME_UNITS: readonly RuntimeUnit[] = [
   unitArgs((u) => (u.tlsCa && targetPlatform(u.driver) === "win32" ? ["-lcrypt32"] : [])),
   // Fetch uses the native network, TLS, and HTTP runtime.
   unit((u) => u.nativeFetch, "scr_fetch.c"),
+  unit(
+    (u) => u.opts.nodeIsland === true,
+    "scr_node_island.c",
+    "scr_node_island_handle.c",
+    "scr_node_island_export.c",
+    "scr_node_island_boot.c",
+    "scr_node_island_gc.c",
+  ),
   // Readable.fromWeb reads a web ReadableStream through its reader.
   unit((u) => u.nativeFetch && u.opts.stream, "scr_stream_from_web.c"),
 ];
@@ -384,12 +460,37 @@ const RUNTIME_DEFINES: readonly {
   when: (opts: CcOptions) => boolean | undefined;
 }[] = [
   { define: "SCR_TEXT_DECODER_LEGACY", when: (opts) => opts.textDecoderLegacy },
-  // Checked objects carry the dynamic tier's shapes (scr_json.c's SCR_JS_TIER build); only
+  // scr_json.c's SCR_JS_TIER build exports the dynamic tier's cache primitives; only
   // programs with dynamic-tier code select it.
   { define: "SCR_JS_TIER", when: (opts) => opts.dynTier === true },
   { define: "SCR_WARNING_REPLACE", when: (opts) => opts.warningReplace },
+  // scr_json.c's view slot answers NULL for a field a partial record view
+  // does not have; only a program with a partial assertion selects it.
+  { define: "SCR_RECORD_VIEW_PARTIAL", when: (opts) => opts.recordViewPartial },
   { define: "SCR_STDIO_EXTENDED", when: (opts) => opts.stdioExtended },
+  // The wave's prepend registrations and stdin.isRaw (scr_events.c,
+  // scr_async_dyn.c), server.off (scr_net.c) and copyFile's mode form
+  // (scr_fs_cp.c). The source build compiles these units from source, so the
+  // defines must name the same builds runtime-pack-matrix.mjs selects.
+  { define: "SCR_PROCESS_EXTRAS", when: (opts) => opts.processExtras },
+  { define: "SCR_NET_SERVER_OFF", when: (opts) => opts.processExtras },
+  { define: "SCR_FS_FLAGS", when: (opts) => opts.fsFlags },
+  // scr_stream.c's write-callback error publication, which the compiler's
+  // error-first write adapter reads.
+  { define: "SCR_STREAM_WRITE_ERRORS", when: (opts) => opts.streamWriteErrors },
+  // scr_events.c's typed process output write slot.
+  { define: "SCR_STDIO_WRITE_SLOT", when: (opts) => opts.stdioWriteSlot },
+  // scr_async.c's native promise reactions, which the web streams unit uses,
+  // scr_json.c's and scr_dyn_builtin_class.c's instanceof over its classes,
+  // and scr_fetch.c's bodies of its streams.
+  { define: "SCR_NATIVE_REACTIONS", when: (opts) => opts.webStreams },
+  { define: "SCR_HANDLE_CLASSES", when: (opts) => opts.webStreams },
   { define: "SCR_YIN", when: (opts) => opts.youngNursery },
+  // scr_lib.c's path stat and zero Stats for the fs.watchFile poll.
+  { define: "SCR_FS_WATCH_FILE", when: (opts) => opts.watchFile },
+  // scr_lib.c's file reads brand their bytes as Node's Buffer answers.
+  { define: "SCR_FS_BUFFER_BRAND", when: (opts) => opts.fsBufferBrand },
+  { define: "SCR_NODE_ISLANDS", when: (opts) => opts.nodeIsland },
 ];
 
 function runtimeDefineArgs(opts: CcOptions): string[] {
@@ -421,6 +522,7 @@ export async function compileCInternal(
   const pki = opts.pki ?? false;
   const mbedtls = tls || cipher || ecdh || dh || pki;
   const brotli = (opts.zlib ?? false) && opts.brotli === true;
+  const icu = opts.intl ?? false;
   const driver = resolveCc();
   const darwinDebugSymbols = needsDarwinDebugSymbols(
     targetPlatform(driver),
@@ -663,17 +765,35 @@ export async function compileCInternal(
   let brotliArchive = brotli
     ? brotliArchivePath(sanitize, driver, vendorBuildIdentity, vendorCacheRoot)
     : null;
+  // The installed runtime pack's ICU archive is the one this path would
+  // build (uninstrumented either way), so a pack that ships it and its
+  // headers spares the Zig C++ build and the source download.
+  const icuPack = icu ? (opts.icuPack ?? null) : null;
+  let icuArchive = icu
+    ? (icuPack?.archive ?? icuArchivePath(driver, vendorBuildIdentity, vendorCacheRoot))
+    : null;
+  // scr_intl.c's ICU headers. They are known before the runtime-object flags
+  // are: those flags compile every runtime unit, so without them a cached
+  // scr_intl.o would take whatever ICU headers the host has.
+  const icuSource =
+    icu && icuPack === null ? join(await ensureIcuSources(vendorCacheRoot), "source") : null;
+  const icuIncludeDirs: readonly string[] =
+    icuPack !== null
+      ? [icuPack.include]
+      : icuSource !== null
+        ? [join(icuSource, "common"), join(icuSource, "i18n")]
+        : [];
 
   // ours would collide; see scr_regex.c) — the standalone objects are for
   // static builds only.
   let lreObjects = regex
     ? lreObjectPaths(sanitize, driver, vendorBuildIdentity, vendorCacheRoot)
     : [];
-  // Vendored zlib is the Zig story — default host-clang builds keep the exact
-  // historical `-lz` system link (see CcOptions.zlib). The native fetch's
-  // gzip decoder rides the same objects/link.
+  // Every driver links the vendored zlib (the copy Node bundles), so
+  // compressed bytes match Node's. The native fetch's gzip decoder rides the
+  // same objects.
   let zlibObjects =
-    ((opts.zlib ?? false) || nativeFetch) && isZigDriver(driver)
+    (opts.zlib ?? false) || nativeFetch
       ? zlibObjectPaths(sanitize, driver, vendorBuildIdentity, vendorCacheRoot)
       : [];
   const materializeVendorPrerequisites = async (
@@ -716,6 +836,18 @@ export async function compileCInternal(
           ? await materialize()
           : await stageVendorInputs(materialize, join(stageRoot, "brotli"));
       brotliArchive = paths[0]!;
+    }
+    if (icu && icuPack === null) {
+      const cachedArchive = icuArchivePath(driver, vendorBuildIdentity, materializeCacheRoot);
+      protectCachedArtifact(cacheWarmPaths, cachedArchive);
+      const materialize = async (): Promise<string[]> => [
+        await ensureIcuArchive(driver, vendorBuildIdentity, materializeCacheRoot),
+      ];
+      const paths =
+        stageRoot === undefined
+          ? await materialize()
+          : await stageVendorInputs(materialize, join(stageRoot, "icu"));
+      icuArchive = paths[0]!;
     }
     if (regex) {
       for (const object of lreObjectPaths(
@@ -804,6 +936,8 @@ export async function compileCInternal(
       zlibObjects,
       tlsArchive,
       brotliArchive,
+      icuArchive,
+      icuIncludeDirs,
     }),
     // A .ll program TU (the LLVM backend) deliberately carries no target
     // triple (byte-stable output; clang supplies the host/SCRIPTC_TARGET
@@ -822,11 +956,6 @@ export async function compileCInternal(
     ...(opts.linkInputs ?? []),
     ...(opts.systemLibraries ?? []).map((name) => `-l${name}`),
     ...(opts.frameworks ?? []).flatMap((name) => ["-framework", name]),
-    // GNU ld resolves libraries from left to right and commonly enables
-    // --as-needed: host-clang libz must follow scr_zlib.c/scr_fetch.c and every
-    // generated/native input that references inflate symbols. Cross
-    // and targetless Zig builds use vendored zlib objects in the input section above.
-    ...(((opts.zlib ?? false) || nativeFetch) && !isZigDriver(driver) ? ["-lz"] : []),
     ...unwinderLinkArgs(driver),
     // glibc keeps libm separate from libc. This must trail the generated
     // program and every native FFI input because GNU ld resolves archives
@@ -857,6 +986,7 @@ export async function compileCInternal(
     ...(regex ? ["-I", vendorEngineDir()] : []),
     ...(zlibObjects.length > 0 ? ["-I", vendorZlibDir()] : []),
     ...(tlsArchive !== null ? ["-I", join(vendorTlsDir(), "include")] : []),
+    ...icuIncludeDirs.flatMap((dir) => ["-I", dir]),
   ];
   // Keep sanitizer runtime objects optimized in both postures. Large dev
   // programs still compile at O0, avoiding an expensive LLVM optimization
@@ -1080,7 +1210,6 @@ export async function compileCInternal(
     ...(targetPlatform(driver) === "win32" ? ["-ladvapi32", "-liphlpapi", "-lws2_32"] : []),
     ...(mbedtls && targetPlatform(driver) === "win32" ? ["-lbcrypt"] : []),
     ...(tlsCa && targetPlatform(driver) === "win32" ? ["-lcrypt32"] : []),
-    ...(((opts.zlib ?? false) || nativeFetch) && !isZigDriver(driver) ? ["-lz"] : []),
     ...unwinderLinkArgs(driver),
     ...driver.linkArgs,
     ...executableLinkFlags,
@@ -1093,7 +1222,6 @@ export async function compileCInternal(
     ...(targetPlatform(driver) === "win32" ? ["-ladvapi32", "-liphlpapi", "-lws2_32"] : []),
     ...(mbedtls && targetPlatform(driver) === "win32" ? ["-lbcrypt"] : []),
     ...(tlsCa && targetPlatform(driver) === "win32" ? ["-lcrypt32"] : []),
-    ...(((opts.zlib ?? false) || nativeFetch) && !isZigDriver(driver) ? ["-lz"] : []),
     ...unwinderLinkArgs(driver),
     ...driver.linkArgs,
     ...executableLinkFlags,
@@ -1487,12 +1615,18 @@ export async function compileCInternal(
             missed: false,
           };
         });
-        const shardWidth = Math.min(8, availableParallelism());
-        for (let i = 0; i < entries.length; i += shardWidth) {
-          await Promise.all(
-            entries.slice(i, i + shardWidth).map(async (entry) => {
+        // Up to eight clangs (one per available core), each taking the next
+        // shard as it finishes: shards differ in size, and a fixed batch
+        // would wait for its slowest member before starting the next. A
+        // failed shard stops the others from taking more work.
+        let nextShard = 0;
+        let failed = false;
+        await Promise.all(
+          Array.from({ length: Math.min(entries.length, 8, availableParallelism()) }, async () => {
+            while (!failed && nextShard < entries.length) {
+              const entry = entries[nextShard++]!;
               await writeFile(entry.sourcePath, entry.source());
-              if (await copyValidCachedFile(entry.cachePath, entry.staged)) return;
+              if (await copyValidCachedFile(entry.cachePath, entry.staged)) continue;
               entry.missed = true;
               await runClang([
                 ...programCompilerArgs,
@@ -1501,10 +1635,13 @@ export async function compileCInternal(
                 entry.sourcePath,
                 "-o",
                 entry.staged,
-              ]);
-            }),
-          );
-        }
+              ]).catch((error: unknown) => {
+                failed = true;
+                throw error;
+              });
+            }
+          }),
+        );
         const arArgv = isZigDriver(driver) ? [driver.argv[0]!, "ar"] : ["ar"];
         const merged = await localizeLibraryObjects(
           driver,
@@ -1514,6 +1651,8 @@ export async function compileCInternal(
           [],
           programPublicSymbols,
           `${stem}.program`,
+          undefined,
+          { inProcessElf: true },
         );
         const publishable = entries.filter((entry) => entry.missed);
         if (publishable.length > 0) {

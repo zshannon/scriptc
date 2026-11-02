@@ -32,6 +32,7 @@ import {
 import { compilerOwnedFileRoots } from "../frontend/dts-paths.js";
 import { provenanceSources } from "../frontend/provenance-registry.js";
 import { processFork } from "../frontend/process-fork.js";
+import { unitReuseEnabled, type UnitStore } from "../frontend/lowering/unit-reuse.js";
 import {
   tokenEquivalentSource,
   tokenPositionEquivalentSource,
@@ -196,6 +197,21 @@ function equivalentFrontendInput(
   };
 }
 
+/** The unit store of a build whose unit key is `key`: its program entry
+ * under that key, and file entries by content digest. */
+function nativeUnitStore(cache: NativeCache, key: string): UnitStore {
+  return {
+    readProgram: () => cache.read("units", key),
+    writeProgram: (bytes) => cache.write("units", key, bytes),
+    readFile: (name) => (/^[0-9a-f]{64}$/.test(name) ? cache.read("unit-files", name) : null),
+    writeFile: (bytes) => {
+      const digest = contentDigest(bytes);
+      if (!cache.has("unit-files", digest)) cache.write("unit-files", digest, bytes, digest);
+      return digest;
+    },
+  };
+}
+
 function implementationIdentity(toolchain: NativeToolchain): string {
   // Release versions alone cannot distinguish two development builds.
   return contentDigest(
@@ -217,8 +233,13 @@ function implementationIdentity(toolchain: NativeToolchain): string {
 const FRONTEND_INDEPENDENT_VARIABLES = new Set([
   "SCRIPTC_CACHE_DIR",
   "SCRIPTC_CACHE_MAX_MB",
+  // The shared checker server answers as the build's own checker does.
+  "SCRIPTC_CHECKER_SERVER",
   "SCRIPTC_EMIT_WORKERS",
   "SCRIPTC_EMIT_WORKER_FUNCTIONS",
+  // Reusing lowered units leaves the lowered module as it is.
+  "SCRIPTC_INCR_LOWERING",
+  "SCRIPTC_INCR_VERIFY",
   "SCRIPTC_TIMING",
 ]);
 
@@ -266,6 +287,8 @@ function validFeatures(value: unknown): value is NativeLinkFeatures {
     "dgramDyn",
     "textCodecDyn",
     "watch",
+    "watchFile",
+    "fsBufferBrand",
     "foreignFfi",
     "nodeTest",
     "tls",
@@ -370,25 +393,34 @@ export function prepareNativeExecutable(
   const exclusions = { outputPaths, outputDirectories: [...directories] };
   const irInput = process.env[BOOTSTRAP_IR_INPUT] ?? "";
   let key: string | null = null;
+  // The unit store's key (unit-reuse.ts): the frontend's inputs without the
+  // output paths, which lowering does not read.
+  let unitKey: string | null = null;
+  // The entry this build replaces: its probes give the digests of unchanged files.
+  let previous: FrontendInputSnapshot | undefined;
   if (cache !== null && irInput === "" && provenanceSources() === null) {
     try {
-      key = contentDigest(
-        JSON.stringify({
-          schema: 1,
-          entry,
-          options,
-          ffi,
-          implementation: implementationIdentity(toolchain),
-          target: toolchain.target.name,
-          declarations: toolchain.declarationsRoot ?? null,
-          environment: frontendEnvironment(),
-        }),
-      );
+      const inputs = {
+        schema: 1,
+        entry,
+        options,
+        ffi,
+        implementation: implementationIdentity(toolchain),
+        target: toolchain.target.name,
+        declarations: toolchain.declarationsRoot ?? null,
+        environment: frontendEnvironment(),
+      };
+      key = contentDigest(JSON.stringify(inputs));
+      if (unitReuseEnabled()) {
+        const { outPath: _outPath, outDir: _outDir, ...lowering } = options;
+        unitKey = contentDigest(JSON.stringify({ ...inputs, options: lowering }));
+      }
       const cached = readFrontendCache(cache, key, exclusions);
       if (cached !== null && "input" in cached) {
         timing("frontend-cache-hit");
         return cached.input;
       }
+      if (cached !== null) previous = cached.stale.probes;
       const equivalent =
         cached === null || outputKind === "ir"
           ? null
@@ -403,12 +435,22 @@ export function prepareNativeExecutable(
     }
   }
   timing("frontend-cache-miss");
-  const tracker = new FrontendInputTracker();
+  const tracker = new FrontendInputTracker(previous);
   const prepared =
     irInput !== ""
       ? preparedFromIr(irInput, entry, options)
       : tracker.runSynchronous(() =>
-          prepareExecutableModule(entry, options, ffi, toolchain.target.platform, frontend, timing),
+          prepareExecutableModule(
+            entry,
+            options,
+            ffi,
+            toolchain.target.platform,
+            frontend,
+            timing,
+            new Map(),
+            true,
+            cache !== null && unitKey !== null ? nativeUnitStore(cache, unitKey) : null,
+          ),
         );
   if (!prepared.ok) return prepared;
   if (irInput !== "") timing("ir-input");
@@ -431,12 +473,16 @@ export function prepareNativeExecutable(
             (outputKind === "exe" || outputKind === "llvm" || outputKind === "asm") &&
             toolchain.target.platform === "linux",
           objectAudit: options.sanitize === true,
+          sanitizeAttributes: options.sanitize === true,
           lowRegion: lowRegionTarget(toolchain.target.platform, options.sanitize === true),
           functionWorkers: emitWorkers(),
           forkPrimitives: emitForkPrimitives(),
+          timing,
           ...inlineRcOption(options.optimization, options.sanitize === true),
           ...(options.detachedExit === true && outputKind === "exe" ? { detachedExit: true } : {}),
+          ...(options.exceptions === "rare" ? { rareExceptions: true } : {}),
           ...targetCpuField(options.targetCpu),
+          ...(options.cpuDispatch === true && outputKind === "exe" ? { cpuDispatch: true } : {}),
           ...(options.optimization === "dev" && !options.strip
             ? { debugSources: prepared.sourceTexts }
             : {}),
@@ -447,7 +493,10 @@ export function prepareNativeExecutable(
     llvm,
     ir,
     sidecarJson: null,
-    features: executableLinkFeatures(prepared.mod),
+    features: executableLinkFeatures(
+      prepared.mod,
+      options.largePages === true && outputKind === "exe",
+    ),
     sources: [...prepared.sourceTexts],
     ...(prepared.warnings.length > 0 ? { warnings: prepared.warnings } : {}),
   };
@@ -545,6 +594,8 @@ export function prepareNativeLibrary(
     pointerBits: toolchain.target.pointerBits,
     wasi: toolchain.target.platform === "wasi",
     objectAudit: options.sanitize === true,
+    sanitizeAttributes: options.sanitize === true,
+    timing,
     ...inlineRcOption(profile.optimization, options.sanitize === true),
   });
   timing("llvm-emit");
@@ -590,5 +641,6 @@ function emitForkPrimitives(): ForkPrimitives | undefined {
     fork: () => primitives.fork(),
     exit: (code) => primitives.exit(code),
     wait: (pid) => primitives.wait(pid),
+    exited: () => primitives.exited(),
   };
 }

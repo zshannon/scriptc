@@ -1,7 +1,14 @@
 import { emitPerKeyOrder } from "./key-orders.js";
 import { typedRefConstructor } from "./shapes.js";
 import { bindLiveArrayOps } from "./expr-stream-bridges.js";
-import { BYTES_ELEM_NUM, SCR_ARR_FIELD, SCR_ARR_STATES, f64Lit, sizeToDouble } from "./common.js";
+import {
+  BYTES_ELEM_NUM,
+  CLOSURE_KIND,
+  SCR_ARR_FIELD,
+  SCR_ARR_STATES,
+  f64Lit,
+  sizeToDouble,
+} from "./common.js";
 import { emitUnionPeek, emitUnionTag } from "./union-repr.js";
 import {
   INLINE_UNION_FIELD,
@@ -25,10 +32,9 @@ import { InternalCompilerError } from "../../errors.js";
  *            are selected from the target C ABI.
  *            v.num double | v.b i8 | v.str/v.bytes ptr at +16;
  *            v.arr { len +16, cap +24, items +32 };
- *            v.obj { len +16, cap +24, entries +32 };
+ *            v.obj { len +16 } (own properties; read them through
+ *            scr_dyn_member_*, which know both object modes);
  *            v.fn  { clo +16, thunk +24, sig +32, name +40, arity +48 }.
- *   ScrDynEntry { key, key_len, value, getter, setter, accessor, writable,
- *                 enumerable, configurable } — 48 bytes on 64-bit, 24 on 32-bit.
  *   ScrDynKind: NULL=0 BOOL=1 NUM=2 STR=3 ARR=4 OBJ=5 UNDEF=6 BYTES=7
  *               FUNC=8 HANDLE=9.
  *   ScrBytes { rc +0; len +8; elem +16; data +24 }.
@@ -51,6 +57,7 @@ import { dynDesc, streamTypedRefEligible } from "../../ir/analysis.js";
 import { mangleRecordNew, mangleRecordStruct } from "../mangle.js";
 import { BlockBuilder } from "./blocks.js";
 import { llvmCommentText } from "./common.js";
+import { JS_BITS } from "./jsval-encoding.js";
 import {
   arrNewCall,
   elemAccess,
@@ -95,6 +102,25 @@ export function recordDynKeepsIdentity(shape: IrRecordShape): boolean {
     (shape.fields.length === 0 && !shape.indexValue) ||
     shape.fields.some((f) => f.name === "handleEvent" && f.type.kind === "func")
   );
+}
+
+/** Whether a promise's fulfillment payload crosses to a checked-dynamic
+ * value as a LIVE capsule of the same record or array (the `dynFrom
+ * liveRef` spelling, lowerer.ts's `liveReference`), so `(await p) ===
+ * shared` holds as it does in Node. Arrays always do; records do when
+ * they declare fields or an index signature (an empty record keeps its
+ * identity through `recordDynKeepsIdentity`'s source access instead). */
+function promisePayloadIsLive(host: DynHost, t: IrType): boolean {
+  if (t.kind === "array") return true;
+  if (t.kind === "record") {
+    const shape = host.recordsById.get(t.shapeId);
+    return shape !== undefined && (shape.fields.length > 0 || shape.indexValue !== undefined);
+  }
+  if (t.kind === "union")
+    return (host.unionsById.get(t.unionId)?.arms ?? []).some((arm) =>
+      promisePayloadIsLive(host, arm),
+    );
+  return false;
 }
 
 /** ScrDynKind values (scr_runtime.h). */
@@ -145,8 +171,8 @@ const DYN_HANDLE_UNBOX_FN: Record<string, string> = {
   dgramSocket: "scr_dgram_from_dyn",
 };
 
-/** ScrMessageKind (scr_message.h): the node kinds message readers test. */
-const MESSAGE_KIND = {
+/** ScrMessageKind (scr_dyn.h): the node kinds message readers test. */
+export const MESSAGE_KIND = {
   UNDEFINED: 0,
   NULL: 1,
   BOOL: 2,
@@ -213,6 +239,24 @@ export interface DynHost extends WalkerHost {
   classValueSubtypes(className: string): readonly string[];
   /** emitter.ts's pendingTestLines: the inline pending-exception test. */
   pendingTestLines(dest: string): string[];
+  /** The closures with a jsval body (IrFunction.jsEntry) on targets with
+   * jsval words, which the box builders give a jsval entry. */
+  jsEntryClosures?(): readonly JsEntryClosure[];
+  /** The entry point and JavaScript name of each named function the module
+   * makes closures of (LlEmitter.closureNames). */
+  closureNames?(): readonly { entry: string; name: string }[];
+}
+
+/** A closure with a jsval body (IrFunction.jsEntry), for the box builders. */
+export interface JsEntryClosure {
+  /** The closure's entry symbol (ScrClosure.fn) and signature. */
+  closure: string;
+  params: readonly IrType[];
+  ret: IrType;
+  /** The jsval body's entry symbol and signature. */
+  body: string;
+  bodyParams: readonly IrType[];
+  bodyRet: IrType;
 }
 
 const FN_ATTRS = "#0";
@@ -241,6 +285,7 @@ export class LlDyn {
   private readonly toDynFns = new Map<string, string>();
   private readonly dynFuncThunks = new Map<string, string>();
   private readonly dynFuncBoxes = new Map<string, string>();
+  private readonly jsEntryThunks = new Map<string, string>();
   private readonly dynFuncAdapters = new Map<string, string>();
   private readonly messageListeners = new Map<string, string | null>();
   private readonly messageReaders = new Map<string, string>();
@@ -253,6 +298,8 @@ export class LlDyn {
   private readonly holdsRecursiveShapes = new Map<string, boolean>();
   /** Emitted function definitions, in interning order. */
   readonly defs: string[] = [];
+
+  private readonly recordViewTables = new Map<string, string>();
 
   constructor(private readonly host: DynHost) {}
 
@@ -282,6 +329,10 @@ export class LlDyn {
         return this.dynFuncThunkHelper(args[0] as IrType & { kind: "func" });
       case "dyn.dynFuncBoxHelper":
         return this.dynFuncBoxHelper(args[0] as IrType & { kind: "func" });
+      case "dyn.jsEntryThunk":
+        return this.jsEntryThunk(args[0] as string, args[1] as IrType[], args[2] as IrType);
+      case "dyn.unnamedFuncBoxHelper":
+        return this.unnamedFuncBoxHelper(args[0] as IrType & { kind: "func" }) ?? "";
       case "dyn.dynFuncAdapterHelper":
         return this.dynFuncAdapterHelper(args[0] as IrType & { kind: "func" });
       case "dyn.dynToStrHelper":
@@ -413,7 +464,7 @@ export class LlDyn {
    * dyn view: inside a visit session (`wrapped`), a capsule keeps the view
    * it was first given, so an outer visit can keep reading it. */
   private viewFn(wrapped: boolean): string {
-    const fn = wrapped ? "scr_dyn_visit_view" : "scr_dyn_typed_ref_materialize";
+    const fn = wrapped ? "scr_dyn_visit_view" : "scr_dyn_typed_ref_peek";
     this.host.declare(`declare ptr @${fn}(ptr)`);
     return fn;
   }
@@ -842,27 +893,23 @@ export class LlDyn {
     return e;
   }
 
-  /** Object entry field addresses: entries + i*sizeof(ScrDynEntry), with
-   * key, key_len, and value at offsets 0, 8, and 16 on 64-bit targets. */
+  /** Own property i of object `d` (borrowed key bytes, key length and
+   * value), read through the runtime's accessors: the object may be in
+   * layout or dictionary mode (scr_dyn.h). */
   private entryAt(
     B: BlockBuilder,
-    entries: string,
+    d: string,
     i: string,
   ): { key: string; keyLen: string; value: string } {
-    const off = B.tmp();
-    const base = B.tmp();
-    B.line(`${off} = mul ${this.S} ${i}, ${this.abiOffset(48, 24)} ; sizeof(ScrDynEntry)`);
-    B.line(`${base} = getelementptr inbounds i8, ptr ${entries}, ${this.S} ${off}`);
+    this.host.declare(`declare ptr @scr_dyn_member_key(ptr, ${this.S})`);
+    this.host.declare(`declare ${this.S} @scr_dyn_member_key_len(ptr, ${this.S})`);
+    this.host.declare(`declare ptr @scr_dyn_member_value(ptr, ${this.S})`);
     const key = B.tmp();
-    B.line(`${key} = load ptr, ptr ${base}`);
-    const klp = B.tmp();
     const keyLen = B.tmp();
-    B.line(`${klp} = getelementptr inbounds i8, ptr ${base}, i64 ${this.abiOffset(8, 4)}`);
-    B.line(`${keyLen} = load ${this.S}, ptr ${klp}`);
-    const vp = B.tmp();
     const value = B.tmp();
-    B.line(`${vp} = getelementptr inbounds i8, ptr ${base}, i64 ${this.abiOffset(16, 8)}`);
-    B.line(`${value} = load ptr, ptr ${vp}`);
+    B.line(`${key} = call ptr @scr_dyn_member_key(ptr ${d}, ${this.S} ${i})`);
+    B.line(`${keyLen} = call ${this.S} @scr_dyn_member_key_len(ptr ${d}, ${this.S} ${i})`);
+    B.line(`${value} = call ptr @scr_dyn_member_value(ptr ${d}, ${this.S} ${i})`);
     return { key, keyLen, value };
   }
 
@@ -1148,10 +1195,62 @@ export class LlDyn {
    * Class layouts share their base prefix, so unboxing retains the same
    * pointer and virtual dispatch still uses the object's original vtable. */
   private typedRefMatches(B: BlockBuilder, t: IrType): string {
+    return this.typedRefMatchesAny(
+      B,
+      isDynTypedRefType(t)
+        ? this.host.classSubtypes(t.className).map((className) => ({ kind: "object", className }))
+        : [t],
+    );
+  }
+
+  /** `scr_dyn_record_view(d, sources, n, key, key_len, new)` for
+   * view target `targetId`: the view (+1) of the record a capsule `%d`
+   * holds when its type is one of the target's sources, else NULL. The
+   * sources table lists each source's type key and the byte offsets of
+   * the target's fields in it. */
+  private recordViewCall(B: BlockBuilder, targetId: string): string {
+    const host = this.host;
+    let table = this.recordViewTables.get(targetId);
+    const sources = host.recordViews!.sources(targetId);
+    const target = host.recordsById.get(targetId)!;
+    if (table === undefined) {
+      table = `@sc_rv_${this.recordViewTables.size}`;
+      this.recordViewTables.set(targetId, table);
+      const S = this.S;
+      const entries = sources.map((sourceId, k) => {
+        const source = host.recordsById.get(sourceId)!;
+        const struct = mangleRecordStruct(sourceId);
+        const base = host.nullableUnions.fieldBase(sourceId);
+        const offsets = target.fields.map((field) => {
+          const index = source.fields.findIndex((f) => f.name === field.name);
+          // A partial view's target field the source does not declare has
+          // no slot: all ones (SIZE_MAX) marks it absent (record-views.ts).
+          if (index < 0) return `${S} -1`;
+          return `${S} ptrtoint (ptr getelementptr (%${struct}, ptr null, i32 0, i32 ${index + base}) to ${S})`;
+        });
+        const offsetTable = `${table}_${k}`;
+        this.defs.push(
+          `${offsetTable} = internal constant [${offsets.length} x ${S}] [${offsets.join(", ")}]`,
+        );
+        const key = typeKey({ kind: "record", shapeId: sourceId });
+        return `{ ptr, ${S}, ptr } { ptr ${host.cstr(key)}, ${S} ${Buffer.byteLength(key, "utf8")}, ptr ${offsetTable} }`;
+      });
+      this.defs.push(
+        `${table} = internal constant [${entries.length} x { ptr, ${S}, ptr }] [${entries.join(", ")}]`,
+        ``,
+      );
+    }
+    const key = typeKey({ kind: "record", shapeId: targetId });
+    host.declare(`declare ptr @scr_dyn_record_view(ptr, ptr, ${this.S}, ptr, ${this.S}, ptr)`);
+    const view = B.tmp();
+    B.line(
+      `${view} = call ptr @scr_dyn_record_view(ptr %d, ptr ${table}, ${this.S} ${sources.length}, ptr ${host.cstr(key)}, ${this.S} ${Buffer.byteLength(key, "utf8")}, ptr @${mangleRecordNew(targetId)})`,
+    );
+    return view;
+  }
+
+  private typedRefMatchesAny(B: BlockBuilder, types: readonly IrType[]): string {
     this.host.declare(`declare zeroext i1 @scr_dyn_typed_ref_is(ptr, ptr, ${this.S})`);
-    const types: IrType[] = isDynTypedRefType(t)
-      ? this.host.classSubtypes(t.className).map((className) => ({ kind: "object", className }))
-      : [t];
     let matched = "false";
     for (const type of types) {
       const key = typeKey(type);
@@ -1434,9 +1533,8 @@ export class LlDyn {
         if (shape.indexValue && shape.indexValue.kind !== "dyn") {
           this.host.declare(`declare i32 @memcmp(ptr, ptr, ${this.S})`);
           const n = this.lenOf(B, "%d");
-          const entries = this.itemsOf(B, "%d");
           this.i64Loop(B, "dm.ov", n, (i, brNext) => {
-            const ent = this.entryAt(B, entries, i);
+            const ent = this.entryAt(B, "%d", i);
             // Skip declared keys.
             for (const f of shape.fields) {
               const klen = Buffer.byteLength(f.name, "utf8");
@@ -1900,6 +1998,19 @@ export class LlDyn {
     );
   }
 
+  /** `record.sourceNote(built, keys)`: the built record keeps `keys` as
+   * its source when they hold an undeclared key or another order. */
+  emitRecordSourceNote(B: BlockBuilder, built: string, keys: string, shapeId: string): void {
+    const host = this.host;
+    const shape = host.recordsById.get(shapeId)!;
+    this.keepsRecordSources = true;
+    const names = this.recordNameTable(shapeId, shape);
+    host.declare(`declare void @scr_record_source_note(ptr, ptr, ptr, ptr, ${host.sizeType})`);
+    B.line(
+      `call void @scr_record_source_note(ptr ${built}, ptr ${keys}, ptr ${names.names}, ptr ${names.lens}, ${host.sizeType} ${shape.fields.length})`,
+    );
+  }
+
   /** The declared-name tables scr_record_source_note scans: parallel
    * constant arrays of field-name bytes and byte lengths in declaration
    * order (the order the record serializes), interned per shape. Internal
@@ -1980,6 +2091,87 @@ export class LlDyn {
   /** `sc_dc_<n>(ptr d, ptr path) -> T` — validate the checked-dynamic tree against T and
    * BUILD the typed value (+1), or throw the catchable path-annotated
    * TypeError and return a dummy with the pending flag set. */
+  /** The array a live view's snapshot commits back into, for element types
+   * whose arrays can hold foreign elements (LlEmitter.mayHoldForeign):
+   * like dynCheckHelper's array case on a checked array `%d`, except that
+   * an element the element type cannot hold is stored as a foreign element
+   * (undefined as a present undefined) instead of failing the conversion.
+   * Boolean arrays, whose slots cannot hold one, keep the failing check. */
+  dynViewArrayHelper(t: IrType & { kind: "array" }): string {
+    const builderKey = `view:${typeKey(t)}`;
+    const existing = this.dynBuilders.get(builderKey);
+    if (existing) return existing;
+    const name = `sc_dva_${this.dynBuilders.size}`;
+    this.dynBuilders.set(builderKey, name);
+    const host = this.host;
+    const elem = t.elem;
+    const check = this.dynCheckHelper(elem);
+    const match = this.dynMatchHelper(elem);
+    const B = new BlockBuilder();
+    const n = this.lenOf(B, "%d");
+    const a = B.tmp();
+    B.line(`${a} = ${arrNewCall(host, elem, n)}`);
+    const items = this.itemsOf(B, "%d");
+    const acc = elemAccess(elem);
+    const accTy = acc === "f64" ? "double" : acc === "bool" ? "i1" : "ptr";
+    host.declare(
+      `declare double @scr_arr_push_${acc}(ptr, ${acc === "bool" ? "i1 zeroext" : accTy})`,
+    );
+    host.declare(`declare zeroext i1 @scr_dyn_arr_has_index(ptr, ${this.S})`);
+    host.declare(`declare void @scr_arr_set_len(ptr, double)`);
+    host.declare(`declare zeroext i1 @scr_arr_set_foreign(ptr, double, ptr)`);
+    this.i64Loop(B, "dva", n, (i) => {
+      const index = B.tmp();
+      B.line(`${index} = ${sizeToDouble(this.S)} ${this.S} ${i} to double`);
+      const present = B.tmp();
+      B.line(`${present} = call zeroext i1 @scr_dyn_arr_has_index(ptr %d, ${this.S} ${i})`);
+      const valueLabel = B.newLabel("dva.present");
+      const holeLabel = B.newLabel("dva.hole");
+      const typedLabel = B.newLabel("dva.typed");
+      const foreignLabel = B.newLabel("dva.foreign");
+      const doneLabel = B.newLabel("dva.done");
+      B.condBr(present, valueLabel, holeLabel);
+      B.startBlock(holeLabel);
+      const length = B.tmp();
+      B.line(`${length} = fadd double ${index}, 1.0`);
+      B.line(`call void @scr_arr_set_len(ptr ${a}, double ${length})`);
+      B.br(doneLabel);
+      B.startBlock(valueLabel);
+      const e = this.itemAt(B, items, i);
+      const fits = B.tmp();
+      B.line(`${fits} = call zeroext i1 @${match}(ptr ${e})`);
+      B.condBr(fits, typedLabel, foreignLabel);
+      B.startBlock(foreignLabel);
+      const kept = B.tmp();
+      B.line(`${kept} = call zeroext i1 @scr_arr_set_foreign(ptr ${a}, double ${index}, ptr ${e})`);
+      B.condBr(kept, doneLabel, typedLabel);
+      B.startBlock(typedLabel);
+      const v = B.tmp();
+      B.line(`${v} = call ${this.valTy(elem)} @${check}(ptr ${e}, ptr null)`);
+      this.pendingBail(
+        B,
+        "dva",
+        () => {
+          host.declare(`declare void @scr_arr_release(ptr)`);
+          B.line(`call void @scr_arr_release(ptr ${a})`);
+        },
+        "ptr null",
+      );
+      const pushed = B.tmp();
+      B.line(`${pushed} = call double @scr_arr_push_${acc}(ptr ${a}, ${accTy} ${v})`);
+      B.br(doneLabel);
+      B.startBlock(doneLabel);
+    });
+    B.terminate(`ret ptr ${a}`);
+    this.defs.push(
+      `define internal ptr @${name}(ptr %d, ptr %path) ${FN_ATTRS} { ; view commit ${typeKey(t)}`,
+      B.render(),
+      `}`,
+      ``,
+    );
+    return name;
+  }
+
   dynCheckHelper(t: IrType, preserveRefs = false): string {
     // A `(T | undefined)[]` stored as T elements also takes undefined ones.
     const key = checkedConversionKey(t);
@@ -2084,6 +2276,20 @@ export class LlDyn {
       B.line(`${ref} = call ptr @scr_dyn_typed_ref_unbox(ptr %d)`);
       B.terminate(`ret ptr ${ref}`);
       B.startBlock(lNext);
+      if (t.kind === "record" && host.recordViews?.targets.has(t.shapeId) === true) {
+        // A capsule of a record with all of this type's fields converts
+        // to a view of that record: both names keep one object
+        // (record-views.ts, decision D3).
+        const view = this.recordViewCall(B, t.shapeId);
+        const viewed = B.tmp();
+        B.line(`${viewed} = icmp ne ptr ${view}, null`);
+        const lView = B.newLabel("dc.view");
+        const lOther = B.newLabel("dc.noview");
+        B.condBr(viewed, lView, lOther);
+        B.startBlock(lView);
+        B.terminate(`ret ptr ${view}`);
+        B.startBlock(lOther);
+      }
       // A constructor-function stream (scr_dyn_builtin_stream.c) carries
       // its runtime stream.
       const streamKind = t.kind === "object" ? builtinStreamKind(t.className) : null;
@@ -2689,9 +2895,8 @@ export class LlDyn {
             B.line(`store i8 ${np}, ptr ${flagsp}`);
           }
           const n = this.lenOf(B, "%d");
-          const entries = this.itemsOf(B, "%d");
           this.i64Loop(B, "dcv", n, (i, brNext) => {
-            const ent = this.entryAt(B, entries, i);
+            const ent = this.entryAt(B, "%d", i);
             for (const f of shape.fields) {
               const klen = Buffer.byteLength(f.name, "utf8");
               const lenEq = B.tmp();
@@ -2742,6 +2947,21 @@ export class LlDyn {
             }
             B.line(`call void @scr_str_release(ptr ${ek})`);
           });
+        }
+        // A record built from a frozen object is frozen too, as the object it
+        // copies (frozen-records.ts makes such shapes freezable).
+        if (shape.freezable) {
+          host.declare(`declare zeroext i1 @scr_dyn_checked_record_frozen(ptr)`);
+          host.declare(`declare void @scr_record_freeze(ptr)`);
+          const frozen = B.tmp();
+          const lFreeze = B.newLabel("dcr.freeze");
+          const lDone = B.newLabel("dcr.frozen");
+          B.line(`${frozen} = call i1 @scr_dyn_checked_record_frozen(ptr %d)`);
+          B.condBr(frozen, lFreeze, lDone);
+          B.startBlock(lFreeze);
+          B.line(`call void @scr_record_freeze(ptr %r0)`);
+          B.br(lDone);
+          B.startBlock(lDone);
         }
         B.terminate(`ret ptr %r0`);
         break;
@@ -3093,7 +3313,7 @@ export class LlDyn {
         B.line(`${targetKind} = getelementptr inbounds %ScrClosure, ptr ${a}, i64 0, i32 4`);
         const adapterKind = B.tmp();
         B.line(
-          `${adapterKind} = or i32 ${functionKind}, 8 ; preserves the checked callable in caps[0]`,
+          `${adapterKind} = or i32 ${functionKind}, ${CLOSURE_KIND.CHECKED_ADAPTER} ; preserves the checked callable in caps[0]`,
         );
         B.line(`store i32 ${adapterKind}, ptr ${targetKind}`);
         const box = B.tmp();
@@ -3378,7 +3598,7 @@ export class LlDyn {
       }
       case "func": {
         const r = B.tmp();
-        B.line(`${r} = call ptr @${this.dynFuncBoxHelper(t)}(ptr %v, ptr null)`);
+        B.line(`${r} = ${this.unnamedFuncBoxCall(t, "%v")}`);
         B.terminate(`ret ptr ${r}`);
         break;
       }
@@ -3686,7 +3906,25 @@ export class LlDyn {
           B.br(doneLabel);
           B.startBlock(presentLabel);
           B.line(`${undefinedState} = fcmp oeq double ${state}, 2.0`); // SCR_ARR_UNDEFINED
-          B.terminate(`br i1 ${undefinedState}, label %${undefinedLabel}, label %${valueLabel}`);
+          if (host.mayHoldForeign(t.elem)) {
+            // A foreign element (SCR_ARR_FOREIGN) holds its own value.
+            const typedLabel = B.newLabel("tda.typed");
+            const foreignLabel = B.newLabel("tda.foreign");
+            B.terminate(`br i1 ${undefinedState}, label %${undefinedLabel}, label %${typedLabel}`);
+            B.startBlock(typedLabel);
+            const foreign = B.tmp();
+            B.line(`${foreign} = fcmp oeq double ${state}, 3.0`);
+            B.condBr(foreign, foreignLabel, valueLabel);
+            B.startBlock(foreignLabel);
+            host.declare(`declare ptr @scr_arr_get_foreign(ptr, double)`);
+            host.declare(`declare void @scr_dyn_arr_push(ptr, ptr)`);
+            const payload = B.tmp();
+            B.line(`${payload} = call ptr @scr_arr_get_foreign(ptr %v, double ${i}) ; +1`);
+            B.line(`call void @scr_dyn_arr_push(ptr ${d}, ptr ${payload})`);
+            B.br(doneLabel);
+          } else {
+            B.terminate(`br i1 ${undefinedState}, label %${undefinedLabel}, label %${valueLabel}`);
+          }
           B.startBlock(undefinedLabel);
           const retained = this.retainDyn(B, this.undef(B));
           B.line(`call void @scr_dyn_arr_push(ptr ${d}, ptr ${retained})`);
@@ -3771,7 +4009,7 @@ export class LlDyn {
             // function boundary (the dynFrom func special case, sans name).
             const p = emitUnionPeek(B, nullable, "%v");
             const r = B.tmp();
-            B.line(`${r} = call ptr @${this.dynFuncBoxHelper(arm)}(ptr ${p}, ptr null)`);
+            B.line(`${r} = ${this.unnamedFuncBoxCall(arm, p)}`);
             B.terminate(`ret ptr ${r}`);
           } else {
             const p = emitUnionPeek(B, nullable, "%v");
@@ -3929,10 +4167,18 @@ export class LlDyn {
         // Ref-payload inners (records, arrays, bytes, %Error, unions,
         // nested promises, handles): extract (+1 via the stored retain),
         // convert through the shared to-dyn spelling, release the extract.
+        // A record or array payload crosses the way `dynFrom liveRef` boxes
+        // one — a LIVE capsule of the settled record — so the settled
+        // payload and the record the producer holds stay one object
+        // (`(await p) === shared`). Everything else keeps the to-dyn
+        // spelling: maps, sets, class instances and bytes box by reference
+        // there already.
         host.declare(`declare ptr @scr_promise_payload_ref(ptr)`);
         const pv = B.tmp();
         B.line(`${pv} = call ptr @scr_promise_payload_ref(ptr %src) ; +1`);
-        const dv = this.toDynExpr(B, inner, pv);
+        const dv = promisePayloadIsLive(host, inner)
+          ? (this.liveToDyn(B, inner, pv) ?? this.toDynExpr(B, inner, pv))
+          : this.toDynExpr(B, inner, pv);
         if (isRefCounted(inner)) B.line(`call void ${releaseSym(host, inner)}(ptr ${pv})`);
         fulfill(dv);
         break;
@@ -5133,9 +5379,12 @@ export class LlDyn {
   /** A live capsule of a record or array value (+1; the value is
    * borrowed), as `dynFrom` with `liveRef` builds it; null for other
    * types. Closures boxed in a declaration-typed boundary program return
-   * their records and arrays this way. */
+   * their records and arrays this way. A TextEncoder, TextDecoder or
+   * StringDecoder record is null too: it boxes as its own handle, which
+   * holds the record by reference (toDynHelper). */
   private liveToDyn(B: BlockBuilder, t: IrType, expr: string): string | null {
     const host = this.host;
+    if (textCodecRecordClass(t, (id) => host.recordsById.get(id)) !== null) return null;
     if (t.kind === "union") {
       const arms = host.unionsById.get(t.unionId)?.arms ?? [];
       if (!arms.some((arm) => arm.kind === "record" || arm.kind === "array")) return null;
@@ -5158,9 +5407,8 @@ export class LlDyn {
   private toDynExpr(B: BlockBuilder, t: IrType, expr: string): string {
     if (t.kind === "dyn") return this.retainDyn(B, expr);
     if (t.kind === "func") {
-      const box = this.dynFuncBoxHelper(t);
       const r = B.tmp();
-      B.line(`${r} = call ptr @${box}(ptr ${expr}, ptr null)`);
+      B.line(`${r} = ${this.unnamedFuncBoxCall(t, expr)}`);
       return r;
     }
 
@@ -5355,6 +5603,193 @@ export class LlDyn {
     return name;
   }
 
+  /** `sc_jt_<n>(ptr c, ptr args, size argc) -> ptr`, a function value's
+   * jsval entry (ScrDynJsEntry) into a closure's jsval body `target`
+   * (IrFunction.jsEntry, 64-bit targets): passes each argument word to the
+   * body, a missing one as undefined and a dyn parameter's boxed, and
+   * returns the body's result as an owned word. Like the closure's own
+   * entry, the body consumes its arguments. With an exception pending the
+   * result is undefined. */
+  jsEntryThunk(target: string, params: readonly IrType[], ret: IrType): string {
+    const existing = this.jsEntryThunks.get(target);
+    if (existing) return existing;
+    const name = `sc_jt_${this.jsEntryThunks.size}`;
+    this.jsEntryThunks.set(target, name);
+    this.host.journalAllocated?.(name, "dyn.jsEntryThunk", [target, params, ret]);
+    const host = this.host;
+    const B = new BlockBuilder();
+    const undefinedWord = `inttoptr (i64 ${JS_BITS.undefined} to ptr)`;
+    const args = params.map((p, i) => {
+      const slot = B.slot();
+      B.entryAllocas.push(`${slot} = alloca ptr`);
+      B.line(`store ptr ${undefinedWord}, ptr ${slot}`);
+      const has = B.tmp();
+      B.line(`${has} = icmp ult ${host.sizeType} ${i}, %argc`);
+      const lHas = B.newLabel("jt.h");
+      const lj = B.newLabel("jt.j");
+      B.condBr(has, lHas, lj);
+      B.startBlock(lHas);
+      const ap = B.tmp();
+      const av = B.tmp();
+      B.line(`${ap} = getelementptr inbounds ptr, ptr %args, ${host.sizeType} ${i}`);
+      B.line(`${av} = load ptr, ptr ${ap}`);
+      B.line(`store ptr ${av}, ptr ${slot}`);
+      B.br(lj);
+      B.startBlock(lj);
+      const word = B.tmp();
+      B.line(`${word} = load ptr, ptr ${slot}`);
+      const owned = B.tmp();
+      if (p.kind === "jsval") {
+        host.declare(`declare ptr @scr_js_retain(ptr)`);
+        B.line(`${owned} = call ptr @scr_js_retain(ptr ${word})`);
+      } else if (p.kind === "dyn") {
+        host.declare(`declare ptr @scr_js_to_dyn_borrow(ptr)`);
+        B.line(`${owned} = call ptr @scr_js_to_dyn_borrow(ptr ${word})`);
+      } else {
+        throw new InternalCompilerError(`llvm emitter bug: jsval entry parameter ${p.kind}`);
+      }
+      return `ptr ${owned}`;
+    });
+    const callArgs = [`ptr %c`, ...args].join(", ");
+    if (ret.kind === "void") {
+      B.line(`call void @${target}(${callArgs})`);
+      this.pendingBail(B, "jtr", () => {}, `ptr ${undefinedWord}`);
+      B.terminate(`ret ptr ${undefinedWord}`);
+    } else {
+      const r = B.tmp();
+      B.line(`${r} = call ${this.valTy(ret)} @${target}(${callArgs})`);
+      this.pendingBail(B, "jtr", () => {}, `ptr ${undefinedWord}`);
+      if (ret.kind === "jsval") {
+        B.terminate(`ret ptr ${r}`);
+      } else if (ret.kind === "f64") {
+        const raw = B.tmp();
+        const nan = B.tmp();
+        const bits = B.tmp();
+        const word = B.tmp();
+        B.line(`${raw} = bitcast double ${r} to i64`);
+        B.line(`${nan} = fcmp uno double ${r}, ${r}`);
+        B.line(`${bits} = select i1 ${nan}, i64 ${JS_BITS.canonicalNan}, i64 ${raw}`);
+        B.line(`${word} = inttoptr i64 ${bits} to ptr`);
+        B.terminate(`ret ptr ${word}`);
+      } else if (ret.kind === "bool") {
+        const bits = B.tmp();
+        const word = B.tmp();
+        B.line(`${bits} = select i1 ${r}, i64 ${JS_BITS.true}, i64 ${JS_BITS.false}`);
+        B.line(`${word} = inttoptr i64 ${bits} to ptr`);
+        B.terminate(`ret ptr ${word}`);
+      } else {
+        // dyn, or a typed result boxed as the closure's own entry would.
+        const d = ret.kind === "dyn" ? r : this.toDynExpr(B, ret, r);
+        if (ret.kind !== "dyn" && isRefCounted(ret))
+          B.line(`call void ${releaseSym(host, ret)}(ptr ${r})`);
+        host.declare(`declare ptr @scr_js_from_dyn(ptr)`);
+        const word = B.tmp();
+        B.line(`${word} = call ptr @scr_js_from_dyn(ptr ${d})`);
+        B.terminate(`ret ptr ${word}`);
+      }
+    }
+    this.defs.push(
+      `define internal ptr @${name}(ptr %c, ptr %args, ${host.sizeType} %argc) ${FN_ATTRS} { ; jsval entry into ${llvmCommentText(target)}`,
+      B.render(),
+      `}`,
+      ``,
+    );
+    this.host.journalBuilt?.();
+    return name;
+  }
+
+  private closureNames: { symbol: string; count: number } | null | undefined;
+
+  /** The module's closure-name lookup (`sc_closure_name(closure)`, over a
+   * table of `{ ptr entry, ptr name }` pairs), defined on first use; null
+   * when no named function becomes a closure. */
+  private closureNameTable(): { symbol: string; count: number } | null {
+    if (this.closureNames !== undefined) return this.closureNames;
+    const entries = this.host.closureNames?.() ?? [];
+    if (entries.length === 0) return (this.closureNames = null);
+    const host = this.host;
+    const S = host.sizeType;
+    const table = "sc_closure_names";
+    const symbol = "sc_closure_name";
+    // The closure's entry point (an adapter's root's, ScrClosure.identity)
+    // compared with each entry; null when none matches.
+    this.defs.push(
+      `@${table} = internal constant [${entries.length} x { ptr, ptr }] [${entries
+        .map((e) => `{ ptr, ptr } { ptr @${e.entry}, ptr ${host.cstr(e.name)} }`)
+        .join(", ")}]`,
+      ``,
+      `define internal ptr @${symbol}(ptr %v) ${FN_ATTRS} { ; the JavaScript name of a closure's function`,
+      `entry:`,
+      `  %idp = getelementptr inbounds %ScrClosure, ptr %v, i64 0, i32 6`,
+      `  %id = load ptr, ptr %idp`,
+      `  %own = icmp eq ptr %id, null`,
+      `  %root = select i1 %own, ptr %v, ptr %id`,
+      `  %fnp = getelementptr inbounds %ScrClosure, ptr %root, i64 0, i32 1`,
+      `  %fn = load ptr, ptr %fnp`,
+      `  br label %loop`,
+      `loop:`,
+      `  %i = phi ${S} [ 0, %entry ], [ %next, %step ]`,
+      `  %done = icmp eq ${S} %i, ${entries.length}`,
+      `  br i1 %done, label %none, label %test`,
+      `test:`,
+      `  %ep = getelementptr inbounds [${entries.length} x { ptr, ptr }], ptr @${table}, i64 0, ${S} %i, i32 0`,
+      `  %e = load ptr, ptr %ep`,
+      `  %hit = icmp eq ptr %e, %fn`,
+      `  br i1 %hit, label %found, label %step`,
+      `step:`,
+      `  %next = add ${S} %i, 1`,
+      `  br label %loop`,
+      `found:`,
+      `  %np = getelementptr inbounds [${entries.length} x { ptr, ptr }], ptr @${table}, i64 0, ${S} %i, i32 1`,
+      `  %name = load ptr, ptr %np`,
+      `  ret ptr %name`,
+      `none:`,
+      `  ret ptr null`,
+      `}`,
+      ``,
+    );
+    return (this.closureNames = { symbol, count: entries.length });
+  }
+
+  private readonly unnamedFuncBoxes = new Map<string, string>();
+
+  /** `sc_dfu_<n>(ptr closure) -> ptr`: the box of a function value with no
+   * static name (one inside a record, array or other value being
+   * converted), named from the module's closure-name table. The plain box
+   * when no named function becomes a closure. */
+  unnamedFuncBoxHelper(t: IrType & { kind: "func" }): string | null {
+    if ((this.host.closureNames?.() ?? []).length === 0) return null;
+    const box = this.dynFuncBoxHelper(t);
+    const key = typeKey(t);
+    const existing = this.unnamedFuncBoxes.get(key);
+    if (existing) return existing;
+    const name = `sc_dfu_${this.unnamedFuncBoxes.size}`;
+    this.unnamedFuncBoxes.set(key, name);
+    this.host.journalAllocated?.(name, "dyn.unnamedFuncBoxHelper", [t]);
+    // The first box defines the table and its lookup.
+    const table = this.closureNameTable()!;
+    this.defs.push(
+      `define internal ptr @${name}(ptr %v) ${FN_ATTRS} { ; box ${key} into dyn with its own name`,
+      `entry:`,
+      `  %n = call ptr @${table.symbol}(ptr %v)`,
+      `  %r = call ptr @${box}(ptr %v, ptr %n)`,
+      `  ret ptr %r`,
+      `}`,
+      ``,
+    );
+    this.host.journalBuilt?.();
+    return name;
+  }
+
+  /** The call that boxes the function value `value` of type `t` without a
+   * static name (unnamedFuncBoxHelper). */
+  unnamedFuncBoxCall(t: IrType & { kind: "func" }, value: string): string {
+    const named = this.unnamedFuncBoxHelper(t);
+    return named === null
+      ? `call ptr @${this.dynFuncBoxHelper(t)}(ptr ${value}, ptr null)`
+      : `call ptr @${named}(ptr ${value})`;
+  }
+
   /** The box builder dynFrom emits for one closure signature. */
   dynFuncBoxHelper(t: IrType & { kind: "func" }): string {
     const key = typeKey(t);
@@ -5368,11 +5803,43 @@ export class LlDyn {
     host.declare(`declare ptr @scr_closure_retain_v(ptr)`);
     host.declare(`declare ptr @scr_dyn_new_func(ptr, ptr, i32, ptr, ptr)`);
     const sigLit = host.cstr(key);
+    // A closure of this signature with a jsval body gets the function
+    // value's jsval entry, however the value is boxed: the closure's
+    // entry pointer names it.
+    const entries =
+      t.rest === true
+        ? []
+        : (host.jsEntryClosures?.() ?? []).filter(
+            (c) =>
+              c.params.length === t.params.length &&
+              c.params.every((p, i) => typeKey(p) === typeKey(t.params[i]!)) &&
+              typeKey(c.ret) === typeKey(t.ret),
+          );
+    const register: string[] = [];
+    if (entries.length > 0) {
+      host.declare(`declare void @scr_dyn_func_set_js(ptr, ptr, ptr)`);
+      register.push(
+        `  %fnp = getelementptr inbounds %ScrClosure, ptr %c, i64 0, i32 1`,
+        `  %fn = load ptr, ptr %fnp`,
+      );
+      entries.forEach((c, i) => {
+        const jsEntry = this.jsEntryThunk(c.body, c.bodyParams, c.bodyRet);
+        register.push(
+          `  %is${i} = icmp eq ptr %fn, @${c.closure}`,
+          `  br i1 %is${i}, label %set${i}, label %next${i}`,
+          `set${i}:`,
+          `  call void @scr_dyn_func_set_js(ptr %r, ptr @${thunk}, ptr @${jsEntry})`,
+          `  ret ptr %r`,
+          `next${i}:`,
+        );
+      });
+    }
     this.defs.push(
       `define internal ptr @${name}(ptr %v, ptr %fname) ${FN_ATTRS} { ; box ${key} into dyn`,
       `entry:`,
       `  %c = call ptr @scr_closure_retain_v(ptr %v)`,
       `  %r = call ptr @scr_dyn_new_func(ptr %c, ptr @${thunk}, i32 ${t.params.length - (t.restAbi === "typed" ? 1 : 0)}, ptr ${sigLit}, ptr %fname)`,
+      ...register,
       `  ret ptr %r`,
       `}`,
       ``,

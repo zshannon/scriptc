@@ -30,6 +30,13 @@ for (const pkg of [
   "runtime-ios-simulator-arm64",
   "runtime-android-arm64",
   "compiler",
+<<<<<<< ours
+=======
+  "experimental",
+  "node",
+  "threads",
+  "types",
+>>>>>>> theirs
   "cli-darwin-arm64",
   "cli-darwin-x64",
   "cli-linux-x64-gnu",
@@ -44,6 +51,10 @@ for (const pkg of [
   "llvm-linux-x64-musl",
   "llvm-linux-arm64-musl",
   "llvm-win32-x64-msvc",
+  "libnode-linux-x64-gnu",
+  "libnode-linux-arm64-gnu",
+  "libnode-darwin-arm64",
+  "libnode-darwin-x64",
 ]) {
   const path = manifest(pkg);
   const json = read(path);
