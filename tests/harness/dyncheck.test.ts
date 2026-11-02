@@ -114,6 +114,32 @@ describe(`dynamic-boundary checks (scriptc-only${sanitize ? ", sanitized" : ""})
     expect(r.stderr).toBe("");
   });
 
+  test("assertions narrowing record members or union arms check the value", async () => {
+    const r = await compileAndRun(
+      "narrowing-record-assertions",
+      `
+      interface AlphaOpts { fast?: boolean }
+      interface Item<K extends string> { id: string; kind: K; opts?: K extends "alpha" ? AlphaOpts : never }
+      const items: Item<"alpha" | "gamma">[] = [{ id: "g1", kind: "gamma" }, { id: "a1", kind: "alpha", opts: { fast: true } }];
+      try { const all = items as Item<"gamma">[]; console.log(all.length); }
+      catch (error) { console.log(error instanceof TypeError, (error as Error).message); }
+      try { const one = items[1]! as Item<"gamma">; console.log(one.id); }
+      catch (error) { console.log(error instanceof TypeError, (error as Error).message); }
+      interface S { stream: () => string }
+      function keys(u: S | { a?: S }): string[] { const m = u as Partial<Record<string, S>>; return Object.keys(m); }
+      try { console.log(keys({ a: { stream: () => "a" } }).join()); console.log(keys({ stream: () => "s" })); }
+      catch (error) { console.log(error instanceof TypeError); }
+    `,
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(
+      "true expected null | undefined at $[1].opts, got object\n" +
+        "true expected null | undefined at $.opts, got object\n" +
+        "a\ntrue\n",
+    );
+    expect(r.stderr).toBe("");
+  });
+
   test("typed Promise exits validate fulfillment and preserve rejection", async () => {
     const result = await compileAndRun(
       "promise-exit-payload",
@@ -143,6 +169,33 @@ describe(`dynamic-boundary checks (scriptc-only${sanitize ? ", sanitized" : ""})
     ).toBe("");
   });
 
+  test("a boxed native value cast to another layout is copied (decision D3)", async () => {
+    // Node's `as` is a no-op, so these writes would show through every
+    // holder. scriptc copies a boxed native value into a cast's different
+    // layout for now (the object model's decision D3: copy, throw, or
+    // share storage); the copy keeps one identity per boxed value.
+    const r = await compileAndRun(
+      "native-layout-casts",
+      `type Point = { x: number; y: number };
+const dict: Record<string, number> = { x: 1, y: 2 };
+const v: unknown = dict;
+const p = v as Point;
+p.x = 5;
+console.log(dict.x, p.x, (v as Point) === p);
+const nums: number[] = [1, 2];
+const u: unknown = nums;
+console.log((u as number[]) === nums);
+const wide = u as (number | string)[];
+wide.push("s");
+console.log(nums.length, wide.length);
+console.log(JSON.stringify({ ...(v as Record<string, number>) }));
+`,
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(["1 5 true", "true", "2 3", '{"x":1,"y":2}', ""].join("\n"));
+    expect(r.stderr).toBe("");
+  });
+
   test("wrong-typed field throws with the path", async () => {
     const r = await compileAndRun(
       "wrong-type",
@@ -154,6 +207,40 @@ console.log("unreachable", c.host);
     expect(r.exitCode).toBe(1);
     expect(r.stdout).toBe("");
     expect(r.stderr).toContain("Uncaught TypeError: expected number at $.port, got string");
+  });
+
+  test("a record cast from unknown to a dictionary throws at its mismatched read", async () => {
+    // An element of an `unknown[]` keeps the record's identity, as an
+    // `unknown` binding does: the write lands, and only the read of a
+    // field the dictionary's value type does not admit throws.
+    const r = await compileAndRun(
+      "dictionary-view-mismatch",
+      `type Stats = { hits: number; name: string };
+const stats: Stats[] = [{ hits: 1, name: "a" }, { hits: 1, name: "b" }];
+function attempt(label: string, view: Record<string, number>): void {
+  view["hits"] = view["hits"]! + 1;
+  try {
+    console.log(label, view["name"]);
+  } catch (error) {
+    console.log(label, (error as Error).name, (error as Error).message);
+  }
+}
+const mapped: unknown[] = stats.map((s) => s as unknown);
+attempt("mapped", mapped[0] as Record<string, number>);
+const listed: unknown[] = [stats[1]];
+attempt("listed", listed[0] as Record<string, number>);
+console.log(stats[0]!.hits, stats[1]!.hits);
+`,
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(
+      [
+        "mapped TypeError expected number at $, got string",
+        "listed TypeError expected number at $, got string",
+        "2 2",
+        "",
+      ].join("\n"),
+    );
   });
 
   test("schema-directed JSON.parse declines to the checked route with identical errors", async () => {
@@ -1068,6 +1155,40 @@ console.log("recovered");
     );
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toBe("TypeError true\nscalar: TypeError\nrecovered\n");
+  });
+
+  test("a union spread merge's checked-dynamic object refuses a single-arm reinterpretation catchably", async () => {
+    // Where the per-arm distribution cannot pick one arm, a spread merge
+    // over union sources builds the object Node builds — the checked-
+    // dynamic copy — and the union's checked conversion validates it at
+    // every typed slot. Node keeps the merged keys through a narrower
+    // `as`; scriptc refuses to reinterpret them silently and throws the
+    // catchable TypeError instead. That makes this path scriptc-only:
+    // corpus union-spread-merge.ts pins the accepting paths differentially.
+    const r = await compileAndRun(
+      "union-spread-merge-dyn",
+      `interface OpenAiCompat { supportsStore?: boolean }
+interface AnthropicCompat { supportsLongCacheRetention?: boolean }
+type Compat = OpenAiCompat | AnthropicCompat;
+function mergeCompat(base: Compat, override: Compat): Compat {
+  return { ...base, ...override } as Compat;
+}
+const merged = mergeCompat({ supportsStore: true }, { supportsLongCacheRetention: true });
+console.log(JSON.stringify(merged));
+try {
+  const single = merged as OpenAiCompat;
+  console.log("unreachable", JSON.stringify(single));
+} catch (e) {
+  console.log((e as Error).name, (e as Error).message.includes("not representable in the target union"));
+}
+console.log("recovered");
+`,
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(
+      '{"supportsStore":true,"supportsLongCacheRetention":true}\nTypeError true\nrecovered\n',
+    );
+    expect(r.stderr).toBe("");
   });
 
   test("a unit smuggled into a PLAIN non-nullable slot throws the stranded trap catchably", async () => {

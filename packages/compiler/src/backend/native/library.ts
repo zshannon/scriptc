@@ -78,9 +78,8 @@ import { CacheInputsChangedError } from "./session.js";
  * External-symbol contract: undefined references only to the target's C/math
  * runtime and system APIs. Windows embedders additionally link advapi32,
  * iphlpapi, and ws2_32; the platform driver supplies its ordinary CRT and
- * kernel imports. Zlib rides the VENDORED per-flavor objects here even on
- * hosts because the executable lane's system `-lz` cannot ride inside an
- * archive. */
+ * kernel imports. Zlib rides the vendored per-flavor objects, as in the
+ * executable lane. */
 
 export async function compileLibArchive(opts: LibArchiveOptions): Promise<void> {
   clearCcCaches();
@@ -105,7 +104,7 @@ export async function compileLibArchive(opts: LibArchiveOptions): Promise<void> 
     // Zig's musl sysroot does not provide arc4random_buf. Keep the fallback
     // inside the archive so library embedders need no extra system library.
     ...(isMuslTarget(driver) ? ["scr_musl.c"] : []),
-    ...(regex ? ["scr_regex.c", "scr_glob.c"] : []),
+    ...(regex ? ["scr_regex.c", "scr_glob.c", "scr_path_win32_relative.c"] : []),
     ...(opts.assert || regex || opts.symbol ? ["scr_assert.c"] : []),
     ...(opts.inspect ? ["scr_inspect.c", "scr_console_native.c"] : []),
     ...(opts.symbol ? ["scr_symbol.c"] : []),
@@ -517,6 +516,8 @@ export async function compileLibArchive(opts: LibArchiveOptions): Promise<void> 
             [],
             programPublicSymbols!,
             `${stem}.program`,
+            undefined,
+            { inProcessElf: true },
           );
           // Keep the canonical archive member spelling. The fact that native
           // compilation used shards is an implementation detail; consumers and
